@@ -14,7 +14,7 @@ const SplashScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#1E3A8A" barStyle="light-content" />
+      <StatusBar backgroundColor="#fff" barStyle="light-content" />
       <Animated.View style={[styles.logoContainer, { opacity: fadeAnim }]}>
         <Text style={styles.logoText}>MyApp</Text>
         <Text style={styles.tagline}>Empowering your daily journey</Text>
@@ -26,7 +26,7 @@ const SplashScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1E3A8A", // Deep blue background
+    backgroundColor: "#fff", // Deep blue background
     justifyContent: "center",
     alignItems: "center",
   },
@@ -34,13 +34,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoText: {
-    color: "#FFFFFF",
+    color: "#0e0e0eff",
     fontSize: 48,
     fontWeight: "bold",
     letterSpacing: 1,
   },
   tagline: {
-    color: "#FFFFFF",
+    color: "#0d0d0dff",
     fontSize: 16,
     marginTop: 8,
     opacity: 0.8,

@@ -1,201 +1,303 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  SafeAreaView,
+} from "react-native";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 const HomeScreen: React.FC = () => {
+  const transcriptions = [
+    {
+      id: "1",
+      title: "Marketing Sync",
+      duration: "35 min",
+      date: "2023-10-15",
+      status: "Summarized",
+    },
+    {
+      id: "2",
+      title: "Lecture: AI Ethics",
+      duration: "1 hr 20 min",
+      date: "2023-10-12",
+      status: "Transcribed",
+    },
+    {
+      id: "3",
+      title: "Client Onboarding Call",
+      duration: "32 min",
+      date: "2023-10-10",
+      status: "Recorded",
+    },
+  ];
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 50 }}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.brand}>SmartScribe</Text>
-        <Image
-          source={{ uri: "https://via.placeholder.com/40" }}
-          style={styles.avatar}
-        />
-      </View>
+    <SafeAreaView style={styles.container}>
+      {/* 🌅 Header Section */}
+      <LinearGradient
+        colors={["#4F46E5", "#1E3A8A"]}
+        style={styles.headerGradient}
+      >
+        {/* Header Top Row */}
+        <View style={styles.headerTop}>
+          {/* Empty view to balance layout */}
+          <View style={{ width: 40 }} />
 
-      {/* Greeting */}
-      <View style={styles.greetingCard}>
-        <Text style={styles.greetingText}>
-          Hi Imaan 👋{"\n"}
-          <Text style={styles.greetingSub}>Ready to make your meetings smarter?</Text>
-        </Text>
-      </View>
+          {/* Center title */}
+          <Text style={styles.headerTitle}>SmartScribe</Text>
 
-      {/* Feature Grid */}
-      <View style={styles.grid}>
-        <FeatureCard
-          icon="mic-outline"
-          title="Record Meeting"
-          description="Capture every word with AI transcription."
-        />
-        <FeatureCard
-          icon="document-text-outline"
-          title="View Transcriptions"
-          description="Access past meeting notes and summaries."
-        />
-        <FeatureCard
-          icon="search-outline"
-          title="Smart Search"
-          description="Find key moments in your meeting archives."
-        />
-        <FeatureCard
-          icon="reader-outline"
-          title="Summary Generator"
-          description="Get AI-powered summaries of your sessions."
-        />
-        <FeatureCard
-          icon="settings-outline"
-          title="Profile & Settings"
-          description="Manage your account and app preferences."
-        />
-      </View>
-
-      {/* Chart Section */}
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Minutes recorded this week</Text>
-        <View style={styles.chartBars}>
-          {[
-            { day: "Mon", height: 80 },
-            { day: "Tue", height: 130 },
-            { day: "Wed", height: 200 },
-            { day: "Thu", height: 160 },
-            { day: "Fri", height: 110 },
-            { day: "Sat", height: 50 },
-          ].map((bar, i) => (
-            <View key={i} style={styles.barItem}>
-              <View style={[styles.bar, { height: bar.height }]} />
-              <Text style={styles.barLabel}>{bar.day}</Text>
-            </View>
-          ))}
+          {/* Profile icon right aligned */}
+          <TouchableOpacity style={styles.profileIcon}>
+            <Ionicons name="person-circle-outline" size={42} color="#FFF" />
+          </TouchableOpacity>
         </View>
+
+        {/* Greeting Section */}
+        <View style={styles.greetingContainer}>
+          <Text style={styles.greetingText}>Good Afternoon, Imaan 👋</Text>
+          <Text style={styles.subGreeting}>
+            Ready to start your next meeting?
+          </Text>
+        </View>
+
+        {/* Microphone */}
+        <View style={styles.micContainer}>
+          <TouchableOpacity style={styles.micButton}>
+            <Ionicons name="mic-outline" size={42} color="#FFF" />
+          </TouchableOpacity>
+          <Text style={styles.tapText}>
+            Tap to record your next meeting or lecture
+          </Text>
+        </View>
+      </LinearGradient>
+
+      {/* 📁 Quick Access Cards */}
+      <View style={styles.cardRow}>
+        <TouchableOpacity style={styles.card}>
+          <Ionicons name="document-text-outline" size={26} color="#4F46E5" />
+          <Text style={styles.cardTitle}>My Transcriptions</Text>
+          <Text style={styles.cardSubtitle}>3 saved meetings</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card}>
+          <MaterialCommunityIcons
+            name="calendar-clock-outline"
+            size={26}
+            color="#4F46E5"
+          />
+          <Text style={styles.cardTitle}>Meetings</Text>
+          <Text style={styles.cardSubtitle}>View & edit</Text>
+        </TouchableOpacity>
       </View>
-    </ScrollView>
+
+      {/* 📜 Recent Transcriptions */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Recent Transcriptions</Text>
+      </View>
+
+      <FlatList
+        data={transcriptions}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.listItem}>
+            <View style={styles.listLeft}>
+              <Text style={styles.listTitle}>{item.title}</Text>
+              <Text style={styles.listSubtitle}>
+                {item.duration} • {item.date}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor:
+                    item.status === "Summarized"
+                      ? "#DCFCE7"
+                      : item.status === "Transcribed"
+                      ? "#E0E7FF"
+                      : "#F3E8FF",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusText,
+                  {
+                    color:
+                      item.status === "Summarized"
+                        ? "#16A34A"
+                        : item.status === "Transcribed"
+                        ? "#4F46E5"
+                        : "#7E22CE",
+                  },
+                ]}
+              >
+                {item.status}
+              </Text>
+            </View>
+          </View>
+        )}
+        showsVerticalScrollIndicator={false}
+      />
+      {/* 💬 Floating Chat Button */}
+      <TouchableOpacity style={styles.chatButton}>
+        <Ionicons name="chatbubbles-outline" size={26} color="#FFF" />
+      </TouchableOpacity>
+    </SafeAreaView>
   );
 };
 
-/* ---------- Feature Card Component ---------- */
-const FeatureCard = ({
-  icon,
-  title,
-  description,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  description: string;
-}) => (
-  <View style={styles.card}>
-    <Ionicons name={icon} size={24} color="#1E3A8A" />
-    <View style={{ flex: 1 }}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      <Text style={styles.cardText}>{description}</Text>
-    </View>
-  </View>
-);
+export default HomeScreen;
 
-/* ---------- Styles ---------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 16,
+  },
+  headerGradient: {
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    paddingHorizontal: 20,
     paddingTop: 40,
+    paddingBottom: 30,
   },
-  header: {
+  headerTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    justifyContent: "space-between",
   },
-  brand: {
-    fontSize: 22,
+  headerTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
     fontWeight: "700",
-    color: "#1E3A8A",
+    textAlign: "center",
   },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  profileIcon: {
+    alignSelf: "flex-end",
+    borderRadius: 30,
+    overflow: "hidden",
   },
-  greetingCard: {
-    backgroundColor: "rgba(96,165,250,0.08)",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+  greetingContainer: {
+    alignItems: "center",
+    marginTop: 20,
   },
   greetingText: {
-    fontSize: 16,
-    color: "#1E3A8A",
-    fontWeight: "600",
-    lineHeight: 22,
-  },
-  greetingSub: {
-    color: "#334155",
-    fontWeight: "400",
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  card: {
-    backgroundColor: "#f8fafc",
-    width: "48%",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  cardTitle: {
+    color: "#FFF",
+    fontSize: 20,
     fontWeight: "700",
-    color: "#1E3A8A",
-    fontSize: 14,
   },
-  cardText: {
+  subGreeting: {
+    color: "#E0E7FF",
+    fontSize: 13,
+    marginTop: 4,
+  },
+  micContainer: {
+    alignItems: "center",
+    marginTop: 25,
+  },
+  micButton: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#6D28D9",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+  },
+  tapText: {
+    color: "#E0E7FF",
     fontSize: 12,
-    color: "#6b7280",
-    marginTop: 2,
-  },
-  chartCard: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 10,
-  },
-  chartTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#1E3A8A",
-    marginBottom: 10,
-  },
-  chartBars: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    height: 220,
     marginTop: 8,
   },
-  barItem: {
+  cardRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginTop: 16,
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    flex: 1,
+    marginHorizontal: 4,
+    padding: 16,
+    alignItems: "flex-start",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1E3A8A",
+    marginTop: 8,
+  },
+  cardSubtitle: {
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  sectionHeader: {
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1E3A8A",
+  },
+  listItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "flex-end",
+    backgroundColor: "#F9FAFB",
+    marginHorizontal: 20,
+    marginTop: 10,
+    borderRadius: 12,
+    padding: 14,
+  },
+  listLeft: {
     flex: 1,
   },
-  bar: {
-    width: 20,
-    borderRadius: 6,
-    backgroundColor: "#1E3A8A",
-    marginBottom: 4,
+  listTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
   },
-  barLabel: {
+  listSubtitle: {
     fontSize: 12,
-    color: "#6b7280",
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  statusBadge: {
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  chatButton: {
+    position: "absolute",
+    bottom: 25,
+    right: 25,
+    backgroundColor: "#4F46E5",
+    width: 55,
+    height: 55,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
   },
 });
-
-export default HomeScreen;
