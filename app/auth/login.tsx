@@ -55,8 +55,8 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", justifyContent: "center", padding: 24 },
-  title: { fontSize: 28, fontWeight: "bold", textAlign: "center", marginBottom: 10 },
-  subtitle: { textAlign: "center", color: "#666", marginBottom: 40 },
+  title: { fontSize: 28,textAlign: "center",color:"#1E3A8A", marginBottom: 10 },
+  subtitle: { textAlign: "center", color: "#6B7280", marginBottom: 40 },
   input: {
     borderWidth: 1,
     borderColor: "#ccc",
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     fontSize: 16,
   },
-  button: { backgroundColor: "#007AFF", padding: 15, borderRadius: 10, marginTop: 10 },
+  button: { backgroundColor: "#4F46E5", padding: 15, borderRadius: 10, marginTop: 10 },
   buttonText: { color: "#fff", fontSize: 16, textAlign: "center", fontWeight: "bold" },
   link: { marginTop: 20, textAlign: "center", color: "#007AFF" },
   linkBold: { fontWeight: "bold" },

@@ -4,34 +4,33 @@ import SplashScreen from "./SplashScreen";
 
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Track auth state
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // later you can check AsyncStorage or Firebase
+  const [showWelcome, setShowWelcome] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      // 🔹 Replace this with AsyncStorage or Firebase auth check later
-      const userToken = null; // simulate: not logged in
-      setIsLoggedIn(!!userToken);
       setIsLoading(false);
-    }, 2000);
-
+      setShowWelcome(true);
+    }, 2000); // 2 sec splash
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading) {
-    return <SplashScreen />;
-  }
+  if (isLoading) return <SplashScreen />;
 
-  // ✅ Define both stacks: auth and user
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      {/* Auth group */}
       <Stack.Screen name="auth" />
+      {/* User group */}
       <Stack.Screen name="user" />
 
-      {/* Redirect logic */}
-      {!isLoggedIn ? (
-        <Redirect href="/auth/login" />
-      ) : (
+      {/* Redirect Logic */}
+      {showWelcome ? (
+        <Redirect href="/auth/welcome" />
+      ) : isLoggedIn ? (
         <Redirect href="/user/home" />
+      ) : (
+        <Redirect href="/auth/login" />
       )}
     </Stack>
   );
