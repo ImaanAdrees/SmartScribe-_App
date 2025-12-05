@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 
@@ -8,7 +8,11 @@ const WelcomeScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Logo Circle */}
       <View style={styles.logo}>
-        <Text style={styles.logoText}>S</Text>
+        <Image
+          source={require("../../assets/images/mainlogo.png")} // 👈 update path based on your folder structure
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Title + Subtitle */}
@@ -70,7 +74,7 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: "#4F46E5",
+    backgroundColor: "#ffffffff",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
@@ -79,10 +83,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
   },
-  logoText: {
-    color: "#FFF",
-    fontSize: 40,
-    fontWeight: "700",
+  logoImage: {
+    width: 100,
+    height: 100,
   },
   title: {
     fontSize: 32,

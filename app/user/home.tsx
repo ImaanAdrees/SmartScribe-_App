@@ -1,95 +1,137 @@
-import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  SafeAreaView,
-} from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const HomeScreen: React.FC = () => {
+  const router = useRouter();
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const slideAnim = useRef(new Animated.Value(600)).current;
+
+  // ⏱ Timer state
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🎞 Modal animation
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: showRecordModal ? 0 : 600,
+      duration: 300,
+      easing: showRecordModal ? Easing.out(Easing.ease) : Easing.in(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+
+    if (showRecordModal) {
+      startTimer();
+    } else {
+      stopTimer();
+      setElapsedTime(0);
+      setIsPaused(false);
+    }
+
+    return () => stopTimer();
+  }, [showRecordModal]);
+
+  // 🧠 Handle timer start / stop
+  const startTimer = () => {
+    stopTimer();
+    timerRef.current = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  // ⏸ Pause or resume recording
+  const handlePauseToggle = () => {
+    if (isPaused) {
+      // resume
+      startTimer();
+    } else {
+      // pause
+      stopTimer();
+    }
+    setIsPaused((prev) => !prev);
+  };
+
+  // ⏳ Format time (MM:SS)
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
+
+  // 📄 Dummy transcription data
   const transcriptions = [
-    {
-      id: "1",
-      title: "Marketing Sync",
-      duration: "35 min",
-      date: "2023-10-15",
-      status: "Summarized",
-    },
-    {
-      id: "2",
-      title: "Lecture: AI Ethics",
-      duration: "1 hr 20 min",
-      date: "2023-10-12",
-      status: "Transcribed",
-    },
-    {
-      id: "3",
-      title: "Client Onboarding Call",
-      duration: "32 min",
-      date: "2023-10-10",
-      status: "Recorded",
-    },
+    { id: "1", title: "Marketing Sync", duration: "35 min", date: "2023-10-15", status: "Summarized" },
+    { id: "2", title: "Lecture: AI Ethics", duration: "1 hr 20 min", date: "2023-10-12", status: "Transcribed" },
+    { id: "3", title: "Client Onboarding Call", duration: "32 min", date: "2023-10-10", status: "Recorded" },
   ];
+
+  // 🟥 Stop Recording
+  const handleStopRecording = () => {
+    stopTimer();
+    setShowRecordModal(false);
+    router.push({
+      pathname: "/meeting/transcption",
+      params: { duration: formatTime(elapsedTime) },
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 🌅 Header Section */}
-      <LinearGradient
-        colors={["#4F46E5", "#1E3A8A"]}
-        style={styles.headerGradient}
-      >
-        {/* Header Top Row */}
+      {/* 🌅 Header */}
+      <LinearGradient colors={["#4F46E5", "#1E3A8A"]} style={styles.headerGradient}>
         <View style={styles.headerTop}>
-          {/* Empty view to balance layout */}
-          <View style={{ width: 40 }} />
-
-          {/* Center title */}
           <Text style={styles.headerTitle}>SmartScribe</Text>
-
-          {/* Profile icon right aligned */}
-          <TouchableOpacity style={styles.profileIcon}>
+          <TouchableOpacity style={styles.profileIcon} onPress={() => router.push("/user/profile")}>
             <Ionicons name="person-circle-outline" size={42} color="#FFF" />
           </TouchableOpacity>
         </View>
 
-        {/* Greeting Section */}
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingText}>Good Afternoon, Imaan 👋</Text>
-          <Text style={styles.subGreeting}>
-            Ready to start your next meeting?
-          </Text>
+          <Text style={styles.subGreeting}>Ready to start your next meeting?</Text>
         </View>
 
-        {/* Microphone */}
+        {/* 🎙 Mic Button */}
         <View style={styles.micContainer}>
-          <TouchableOpacity style={styles.micButton}>
-            <Ionicons name="mic-outline" size={42} color="#FFF" />
+          <TouchableOpacity
+            style={styles.micButton}
+            onPress={() => setShowRecordModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="mic-outline" size={42} color="#4F46E5" />
           </TouchableOpacity>
-          <Text style={styles.tapText}>
-            Tap to record your next meeting or lecture
-          </Text>
+          <Text style={styles.tapText}>Tap to record your next meeting or lecture</Text>
         </View>
       </LinearGradient>
 
-      {/* 📁 Quick Access Cards */}
+      {/* 📁 Quick Access */}
       <View style={styles.cardRow}>
-        <TouchableOpacity style={styles.card}>
+        <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/transcption")}>
           <Ionicons name="document-text-outline" size={26} color="#4F46E5" />
           <Text style={styles.cardTitle}>My Transcriptions</Text>
           <Text style={styles.cardSubtitle}>3 saved meetings</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card}>
-          <MaterialCommunityIcons
-            name="calendar-clock-outline"
-            size={26}
-            color="#4F46E5"
-          />
-          <Text style={styles.cardTitle}>Meetings</Text>
+        <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/summary")}>
+          <MaterialCommunityIcons name="calendar-clock-outline" size={26} color="#4F46E5" />
+          <Text style={styles.cardTitle}>summaries</Text>
           <Text style={styles.cardSubtitle}>View & edit</Text>
         </TouchableOpacity>
       </View>
@@ -143,10 +185,51 @@ const HomeScreen: React.FC = () => {
         )}
         showsVerticalScrollIndicator={false}
       />
-      {/* 💬 Floating Chat Button */}
-      <TouchableOpacity style={styles.chatButton}>
+
+      {/* 💬 Floating Chat */}
+      <TouchableOpacity style={styles.chatButton} onPress={() => router.push("/meeting/smartsearch")}>
         <Ionicons name="chatbubbles-outline" size={26} color="#FFF" />
       </TouchableOpacity>
+
+      {/* 🎞 Recording Modal */}
+      <Modal transparent visible={showRecordModal} animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.modalContent, { transform: [{ translateY: slideAnim }] }]}>
+            <Text style={styles.modalTitle}>Recording in Progress 🎙️</Text>
+
+            <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.controlButton, styles.pauseButton]}
+                onPress={handlePauseToggle}
+              >
+                <Ionicons
+                  name={isPaused ? "play-outline" : "pause-outline"}
+                  size={32}
+                  color="#FFF"
+                />
+                <Text style={styles.controlLabel}>{isPaused ? "Resume" : "Pause"}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.controlButton, styles.stopButton]}
+                onPress={handleStopRecording}
+              >
+                <Ionicons name="stop-outline" size={32} color="#FFF" />
+                <Text style={styles.controlLabel}>Stop</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowRecordModal(false)}
+            >
+              <Ionicons name="close" size={26} color="#FFF" />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -154,150 +237,122 @@ const HomeScreen: React.FC = () => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
+  container: { flex: 1, backgroundColor: "#FFF" },
   headerGradient: {
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 40,
-    paddingBottom: 30,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   headerTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 35,
   },
-  headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
+  headerTitle: { 
+    color: "#FFF", 
+    fontSize: 22, 
     fontWeight: "700",
-    textAlign: "center",
   },
   profileIcon: {
-    alignSelf: "flex-end",
-    borderRadius: 30,
-    overflow: "hidden",
-  },
-  greetingContainer: {
+    width: 42,
+    height: 42,
     alignItems: "center",
-    marginTop: 20,
-  },
-  greetingText: {
-    color: "#FFF",
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  subGreeting: {
-    color: "#E0E7FF",
-    fontSize: 13,
-    marginTop: 4,
-  },
-  micContainer: {
-    alignItems: "center",
-    marginTop: 25,
-  },
-  micButton: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#6D28D9",
     justifyContent: "center",
+  },
+  greetingContainer: { paddingHorizontal: 50, marginTop: 20 },
+  greetingText: { color: "#FFF", fontSize: 20, fontWeight: "600" },
+  subGreeting: { color: "#E0E7FF", marginTop: 4 },
+  micContainer: { alignItems: "center", marginTop: 30 },
+  micButton: {
+    backgroundColor: "#ffffffff",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowRadius: 10,
   },
-  tapText: {
-    color: "#E0E7FF",
-    fontSize: 12,
-    marginTop: 8,
-  },
+  tapText: { color: "#E0E7FF", marginTop: 10, fontSize: 13 },
   cardRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    marginTop: 16,
+    justifyContent: "space-around",
+    marginHorizontal: 16,
+    marginTop: 20,
   },
   card: {
-    backgroundColor: "#FFF",
+    backgroundColor: "#F9FAFB",
     borderRadius: 16,
-    flex: 1,
-    marginHorizontal: 4,
     padding: 16,
-    alignItems: "flex-start",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    alignItems: "center",
+    width: "45%",
+    elevation: 2,
   },
   cardTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#1E3A8A",
-    marginTop: 8,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginTop: 6,
   },
-  cardSubtitle: {
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  sectionHeader: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1E3A8A",
-  },
+  cardSubtitle: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  sectionHeader: { paddingHorizontal: 16, marginTop: 20, marginBottom: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: "600", color: "#111827" },
   listItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#F9FAFB",
-    marginHorizontal: 20,
-    marginTop: 10,
-    borderRadius: 12,
+    marginHorizontal: 16,
     padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
   },
-  listLeft: {
-    flex: 1,
-  },
-  listTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  listSubtitle: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  statusBadge: {
-    borderRadius: 8,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  listLeft: { flex: 1 },
+  listTitle: { fontSize: 16, fontWeight: "600", color: "#111827" },
+  listSubtitle: { fontSize: 13, color: "#6B7280" },
+  statusBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10 },
+  statusText: { fontSize: 13, fontWeight: "600" },
   chatButton: {
-    position: "absolute",
-    bottom: 25,
-    right: 25,
-    backgroundColor: "#4F46E5",
-    width: 55,
-    height: 55,
-    borderRadius: 28,
-    justifyContent: "center",
+    backgroundColor: "#6D28D9",
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     alignItems: "center",
+    justifyContent: "center",
+    position: "absolute",
+    bottom: 40,
+    right: 22,
     shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    alignItems: "center",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "600", color: "#111827", marginBottom: 10 },
+  timerText: { fontSize: 26, fontWeight: "700", color: "#6D28D9", marginBottom: 20 },
+  buttonRow: { flexDirection: "row", justifyContent: "space-evenly", width: "100%" },
+  controlButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    width: "40%",
+    borderRadius: 12,
+  },
+  pauseButton: { backgroundColor: "#2196F3" },
+  stopButton: { backgroundColor: "#DC2626" },
+  controlLabel: { color: "#FFF", marginTop: 4, fontSize: 14, fontWeight: "600" },
+  closeButton: { marginTop: 16, backgroundColor: "#6D28D9", padding: 10, borderRadius: 30 },
 });

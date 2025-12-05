@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, Animated, StatusBar } from "react-native";
+import { View, StyleSheet, Animated, StatusBar, Image } from "react-native";
 
 const SplashScreen: React.FC = () => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -14,10 +14,15 @@ const SplashScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#fff" barStyle="light-content" />
-      <Animated.View style={[styles.logoContainer, { opacity: fadeAnim }]}>
-        <Text style={styles.logoText}>MyApp</Text>
-        <Text style={styles.tagline}>Empowering your daily journey</Text>
+      <StatusBar backgroundColor="#fff" barStyle="dark-content" />
+
+      {/* Animated logo */}
+      <Animated.View style={{ opacity: fadeAnim }}>
+        <Image
+          source={require("../assets/images/mainlogo.png")} // 👈 put your logo here
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </Animated.View>
     </View>
   );
@@ -26,24 +31,13 @@ const SplashScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff", // Deep blue background
+    backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
   },
-  logoContainer: {
-    alignItems: "center",
-  },
-  logoText: {
-    color: "#0e0e0eff",
-    fontSize: 48,
-    fontWeight: "bold",
-    letterSpacing: 1,
-  },
-  tagline: {
-    color: "#0d0d0dff",
-    fontSize: 16,
-    marginTop: 8,
-    opacity: 0.8,
+  logo: {
+    width: 160, // adjust size as needed
+    height: 160,
   },
 });
 

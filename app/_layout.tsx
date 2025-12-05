@@ -23,6 +23,8 @@ export default function RootLayout() {
       <Stack.Screen name="auth" />
       {/* User group */}
       <Stack.Screen name="user" />
+      
+       <Stack.Screen name="meeting" />
 
       {/* Redirect Logic */}
       {showWelcome ? (

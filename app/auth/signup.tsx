@@ -6,17 +6,19 @@ export default function SignupScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("");
 
   const handleSignup = () => {
-    if (!name || !email || !password) {
-      Alert.alert("Error", "Please fill all fields");
+    if (!name || !email || !password || !role) {
+      Alert.alert("Error", "Please fill all fields and select a role");
       return;
     }
 
-    // Temporary: you can save to AsyncStorage or call your backend API here
-    Alert.alert("Success", "Account created successfully!");
+    Alert.alert("Success", `Account created successfully as ${role}!`);
     router.replace("/auth/login");
   };
+
+  const roles = ["Student", "Teacher", "Other"];
 
   return (
     <View style={styles.container}>
@@ -46,6 +48,29 @@ export default function SignupScreen() {
         secureTextEntry
       />
 
+      <Text style={styles.roleLabel}>Select Role</Text>
+      <View style={styles.roleContainer}>
+        {roles.map((item) => (
+          <TouchableOpacity
+            key={item}
+            onPress={() => setRole(item)}
+            style={[
+              styles.roleButton,
+              role === item && styles.roleButtonSelected
+            ]}
+          >
+            <Text
+              style={[
+                styles.roleText,
+                role === item && styles.roleTextSelected
+              ]}
+            >
+              {item}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <TouchableOpacity style={styles.button} onPress={handleSignup}>
         <Text style={styles.buttonText}>Sign Up</Text>
       </TouchableOpacity>
@@ -59,7 +84,7 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", justifyContent: "center", padding: 24 },
-  title: { fontSize: 28, textAlign: "center",color:"#1E3A8A",marginBottom: 10 },
+  title: { fontSize: 28, textAlign: "center", color:"#1E3A8A", marginBottom: 10 },
   subtitle: { textAlign: "center", color: "#6B7280", marginBottom: 40 },
   input: {
     borderWidth: 1,
@@ -68,6 +93,29 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 15,
     fontSize: 16,
+  },
+  roleLabel: { fontSize: 16, marginBottom: 10, color: "#1E3A8A" },
+  roleContainer: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
+  roleButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 10,
+    borderRadius: 8,
+    marginHorizontal: 4,
+    alignItems: "center",
+  },
+  roleButtonSelected: {
+    backgroundColor: "#4F46E5",
+    borderColor: "#4F46E5",
+  },
+  roleText: {
+    color: "#6B7280",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  roleTextSelected: {
+    color: "#fff",
   },
   button: { backgroundColor: "#4F46E5", padding: 15, borderRadius: 10, marginTop: 10 },
   buttonText: { color: "#fff", fontSize: 16, textAlign: "center", fontWeight: "bold" },
