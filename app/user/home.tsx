@@ -97,11 +97,25 @@ const HomeScreen: React.FC = () => {
       {/* 🌅 Header */}
       <LinearGradient colors={["#4F46E5", "#1E3A8A"]} style={styles.headerGradient}>
         <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>SmartScribe</Text>
-          <TouchableOpacity style={styles.profileIcon} onPress={() => router.push("/user/profile")}>
-            <Ionicons name="person-circle-outline" size={42} color="#FFF" />
-          </TouchableOpacity>
-        </View>
+  {/* App Title */}
+  <Text style={styles.headerTitle}>SmartScribe</Text>
+
+  {/* Notification & Profile Icons */}
+  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+    {/* Notification Icon */}
+    <TouchableOpacity
+      style={{ marginRight: 12 }}
+      onPress={() => router.push('/user/notification')} // navigate to notifications page
+    >
+      <Ionicons name="notifications-outline" size={30} color="#FFF" />
+    </TouchableOpacity>
+
+    {/* Profile Icon */}
+    <TouchableOpacity style={styles.profileIcon} onPress={() => router.push('/user/profile')}>
+      <Ionicons name="person-circle-outline" size={42} color="#FFF" />
+    </TouchableOpacity>
+  </View>
+</View>
 
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingText}>Good Afternoon, Imaan 👋</Text>
@@ -128,7 +142,15 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.cardTitle}>My Transcriptions</Text>
           <Text style={styles.cardSubtitle}>3 saved meetings</Text>
         </TouchableOpacity>
-
+ <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/savedrecording")}>
+    <MaterialCommunityIcons
+      name="microphone-outline"
+      size={26}
+      color="#4F46E5"
+    />
+    <Text style={styles.cardTitle}>Saved Recordings</Text>
+    <Text style={styles.cardSubtitle}>Replay & manage</Text>
+</TouchableOpacity>
         <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/summary")}>
           <MaterialCommunityIcons name="calendar-clock-outline" size={26} color="#4F46E5" />
           <Text style={styles.cardTitle}>summaries</Text>
@@ -284,13 +306,17 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   card: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
-    width: "45%",
-    elevation: 2,
-  },
+  backgroundColor: "#FFF",
+  borderRadius: 16,
+  width: "32%",
+  padding: 16,
+  alignItems: "flex-start",
+  shadowColor: "#000",
+  shadowOpacity: 0.05,
+  shadowOffset: { width: 0, height: 2 },
+  shadowRadius: 4,
+},
+
   cardTitle: {
     fontSize: 15,
     fontWeight: "600",

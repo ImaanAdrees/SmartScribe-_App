@@ -8,15 +8,60 @@ export default function SignupScreen() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
 
-  const handleSignup = () => {
-    if (!name || !email || !password || !role) {
-      Alert.alert("Error", "Please fill all fields and select a role");
-      return;
-    }
+  const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
 
-    Alert.alert("Success", `Account created successfully as ${role}!`);
-    router.replace("/auth/login");
-  };
+const validatePassword = (password) => {
+  // Minimum 6 characters, at least one letter and one number
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
+  return passwordRegex.test(password);
+};
+
+const handleSignup = () => {
+  if (!name.trim()) {
+    Alert.alert("Invalid Name", "Please enter your full name.");
+    return;
+  }
+
+  if (name.trim().length < 3) {
+    Alert.alert("Name Too Short", "Name must be at least 3 characters long.");
+    return;
+  }
+
+  if (!email.trim()) {
+    Alert.alert("Invalid Email", "Please enter your email address.");
+    return;
+  }
+
+  if (!validateEmail(email)) {
+    Alert.alert("Email Format Error", "Please enter a valid email address.");
+    return;
+  }
+
+  if (!password.trim()) {
+    Alert.alert("Invalid Password", "Please enter a password.");
+    return;
+  }
+
+  if (!validatePassword(password)) {
+    Alert.alert(
+      "Weak Password",
+      "Password must be at least 6 characters and contain letters & numbers."
+    );
+    return;
+  }
+
+  if (!role) {
+    Alert.alert("Role Required", "Please select your role.");
+    return;
+  }
+
+  Alert.alert("Success", `Account created successfully as ${role}!`);
+  router.replace("/auth/login");
+};
+
 
   const roles = ["Student", "Teacher", "Other"];
 

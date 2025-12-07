@@ -1,28 +1,31 @@
-// ============================================
-// LOGIN SCREEN (Updated with Forget Password)
-// ============================================
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
-import { Link, router } from "expo-router";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { showToast } from "../ToastHelper"; // import helper
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
+
+  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleLogin = () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill all fields");
-      return;
-    }
+    if (!email.trim()) return showToast("error", "Email Required", "Please enter your email address.");
+    if (!validateEmail(email)) return showToast("error", "Invalid Email", "Enter a valid email format.");
+    if (!password.trim()) return showToast("error", "Password Required", "Please enter your password.");
 
-    // Temporary logic (replace with Firebase or backend API)
     if (email === "test@example.com" && password === "123456") {
-      Alert.alert("Login Successful");
-      router.replace("/user/home");
+      showToast("success", "Login Successful 🎉", "Welcome back!");
+
+      // Delay navigation AFTER toast
+      setTimeout(() => {
+        router.replace("/user/home");
+      }, 2100); // slightly longer than toast visibility
     } else {
-      Alert.alert("Invalid credentials", "Try again");
+      showToast("error", "Invalid Credentials", "Please try again.");
     }
   };
 
@@ -57,18 +60,11 @@ export default function LoginScreen() {
           secureTextEntry={!showPassword}
         />
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-          <Ionicons 
-            name={showPassword ? "eye-outline" : "eye-off-outline"} 
-            size={20} 
-            color="#6B7280" 
-          />
+          <Ionicons name={showPassword ? "eye-outline" : "eye-off-outline"} size={20} color="#6B7280" />
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity 
-        style={styles.forgotPassword}
-        onPress={() => router.push("/auth/forgetpas")}
-      >
+      <TouchableOpacity style={styles.forgotPassword} onPress={() => router.push("/auth/forgetpas")}>
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
@@ -86,27 +82,33 @@ export default function LoginScreen() {
   );
 }
 
+// Styles remain the same as your previous LoginScreen
+
+
+// ============================================
+// STYLES
+// ============================================
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#fff", 
-    justifyContent: "center", 
-    padding: 24 
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    padding: 24,
   },
   iconContainer: {
     alignItems: "center",
     marginBottom: 20,
   },
-  title: { 
+  title: {
     fontSize: 28,
     fontWeight: "700",
     textAlign: "center",
-    color: "#1E3A8A", 
-    marginBottom: 10 
+    color: "#1E3A8A",
+    marginBottom: 10,
   },
-  subtitle: { 
-    textAlign: "center", 
-    color: "#6B7280", 
+  subtitle: {
+    textAlign: "center",
+    color: "#6B7280",
     marginBottom: 40,
     fontSize: 15,
   },
@@ -138,10 +140,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  button: { 
-    backgroundColor: "#4F46E5", 
-    padding: 16, 
-    borderRadius: 12, 
+  button: {
+    backgroundColor: "#4F46E5",
+    padding: 16,
+    borderRadius: 12,
     marginTop: 10,
     shadowColor: "#4F46E5",
     shadowOpacity: 0.3,
@@ -149,11 +151,11 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  buttonText: { 
-    color: "#fff", 
-    fontSize: 16, 
-    textAlign: "center", 
-    fontWeight: "700" 
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    textAlign: "center",
+    fontWeight: "700",
   },
   signupContainer: {
     flexDirection: "row",
@@ -170,7 +172,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
-
-
-

@@ -112,6 +112,7 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.cardTitle}>Meetings</Text>
           <Text style={styles.cardSubtitle}>View & edit</Text>
         </TouchableOpacity>
+        
       </View>
 
       {/* 📜 Recent Transcriptions */}
@@ -335,4 +336,4 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 6,
   },
-});
+});   
