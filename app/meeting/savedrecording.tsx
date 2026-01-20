@@ -52,7 +52,7 @@ export default function RecordingsScreen() {
     return (
       <View style={styles.recordingCard}>
         <LinearGradient
-          colors={active ? ['#ffffffff', '#000000ff'] : ['#ffffffff', '#ffffffff']}
+          colors={active ? ['#4F46E5', '#1E3A8A'] : ['#ffffffff', '#ffffffff']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.cardGradient}
@@ -80,7 +80,7 @@ export default function RecordingsScreen() {
             <View style={styles.buttonRow}>
               <TouchableOpacity onPress={() => playRecording(item)}>
                 <LinearGradient
-                  colors={active && isPlaying ? ['#EF4444', '#DC2626'] : ['#10B981', '#059669']}
+                  colors={active && isPlaying ? ['#EF4444', '#DC2626'] : ['#7B2FF7', '#7B2FF7']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.actionBtn}
@@ -220,14 +220,14 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 24,
-  },
+    },
   textSection: {
     flex: 1,
   },
   recordingName: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFF',
+    color: '#000000ff',
     marginBottom: 6,
   },
   metaRow: {
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 11,
-    color: '#FFF',
+    color: '#000000ff',
     fontWeight: '600',
     textTransform: 'uppercase',
   },
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   secondaryBtnText: {
-    color: '#FFF',
+    color: '#000000ff',
     fontSize: 14,
     fontWeight: '600',
   },

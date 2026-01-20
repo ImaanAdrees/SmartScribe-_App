@@ -12,7 +12,9 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ScrollView,
 } from "react-native";
+
 
 const HomeScreen: React.FC = () => {
   const router = useRouter();
@@ -135,28 +137,43 @@ const HomeScreen: React.FC = () => {
         </View>
       </LinearGradient>
 
-      {/* 📁 Quick Access */}
-      <View style={styles.cardRow}>
-        <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/transcption")}>
-          <Ionicons name="document-text-outline" size={26} color="#4F46E5" />
-          <Text style={styles.cardTitle}>My Transcriptions</Text>
-          <Text style={styles.cardSubtitle}>3 saved meetings</Text>
-        </TouchableOpacity>
- <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/savedrecording")}>
+{/* 📁 Quick Access Cards */}
+<ScrollView
+  horizontal
+  showsHorizontalScrollIndicator={false}
+  contentContainerStyle={{
+    paddingHorizontal: 16, 
+    paddingVertical: 12,  // ⬅️ adds top & bottom margin for cards
+  }}
+  style={{ marginTop: 20, marginBottom: 10, }}
+>
+  <TouchableOpacity style={styles.card}onPress={() => router.push("/meeting/transcption")}>
+    <Ionicons name="document-text-outline" size={26} color="#4F46E5" />
+    <Text style={styles.cardTitle}>My Transcriptions</Text>
+    <Text style={styles.cardSubtitle}>3 saved meetings</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/summary")}>
+    <MaterialCommunityIcons
+      name="calendar-clock-outline"
+      size={26}
+      color="#4F46E5"
+    />
+    <Text style={styles.cardTitle}>Summaries</Text>
+    <Text style={styles.cardSubtitle}>View & edit</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/savedrecording")}>
     <MaterialCommunityIcons
       name="microphone-outline"
       size={26}
       color="#4F46E5"
     />
     <Text style={styles.cardTitle}>Saved Recordings</Text>
-    <Text style={styles.cardSubtitle}>Replay & manage</Text>
-</TouchableOpacity>
-        <TouchableOpacity style={styles.card} onPress={() => router.push("/meeting/summary")}>
-          <MaterialCommunityIcons name="calendar-clock-outline" size={26} color="#4F46E5" />
-          <Text style={styles.cardTitle}>summaries</Text>
-          <Text style={styles.cardSubtitle}>View & edit</Text>
-        </TouchableOpacity>
-      </View>
+    <Text style={styles.cardSubtitle}>View & edit</Text>
+  </TouchableOpacity>
+</ScrollView>
+
 
       {/* 📜 Recent Transcriptions */}
       <View style={styles.sectionHeader}>
@@ -305,26 +322,24 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 20,
   },
-  card: {
-  backgroundColor: "#FFF",
-  borderRadius: 16,
-  width: "32%",
+ card: {
+  width: 150,
+  backgroundColor: "#fff",
   padding: 16,
-  alignItems: "flex-start",
-  shadowColor: "#000",
-  shadowOpacity: 0.05,
-  shadowOffset: { width: 0, height: 2 },
-  shadowRadius: 4,
+  borderRadius: 12,
+  marginRight: 12,
+  elevation: 3,
+  alignItems: "center",
 },
-
   cardTitle: {
+   textAlign:"center",
     fontSize: 15,
     fontWeight: "600",
     color: "#111827",
     marginTop: 6,
   },
   cardSubtitle: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  sectionHeader: { paddingHorizontal: 16, marginTop: 20, marginBottom: 8 },
+  sectionHeader: { paddingHorizontal: 16, marginTop: 10, marginBottom: 8 },
   sectionTitle: { fontSize: 18, fontWeight: "600", color: "#111827" },
   listItem: {
     flexDirection: "row",

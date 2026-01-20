@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { showToast } from "../ToastHelper"; // import helper
+import { showToast } from "../../utils/ToastHelper"; // import helper
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");

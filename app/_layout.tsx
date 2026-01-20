@@ -29,7 +29,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <Toast /> {/* Global toast */}
+      {/* <Toast /> Global toast */}
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth" />
         <Stack.Screen name="user" />
