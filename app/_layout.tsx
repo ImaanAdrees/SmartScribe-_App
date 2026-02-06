@@ -29,12 +29,12 @@ export default function RootLayout() {
 
   return (
     <>
-      {/* <Toast /> Global toast */}
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth" />
         <Stack.Screen name="user" />
         <Stack.Screen name="meeting" />
       </Stack>
+      <Toast />
     </>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,26 +10,153 @@ import {
   Alert,
   Linking,
   Pressable,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authAPI } from "../../utils/api";
+import { showToast } from "../../utils/ToastHelper";
 
 const ProfileScreen = () => {
   const router = useRouter();
-  const [userName, setUserName] = useState("John Anderson");
-  const [userEmail] = useState("john.anderson@company.com");
+  const [userName, setUserName] = useState("Guest");
+  const [userEmail, setUserEmail] = useState("");
+  const [userRole, setUserRole] = useState("Student");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
-  const [tempName, setTempName] = useState(userName);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [tempName, setTempName] = useState("");
   const [profileImage, setProfileImage] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSaveName = () => {
-    setUserName(tempName);
-    setShowEditModal(false);
+  // Password change states
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Load user data on mount and when screen comes into focus
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsedData = JSON.parse(userData);
+          setUserName(parsedData.name || "Guest");
+          setUserEmail(parsedData.email || "");
+          setUserRole(parsedData.role || "Student");
+          setTempName(parsedData.name || "Guest");
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  // Reload user data whenever screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadUserData = async () => {
+        try {
+          const userData = await AsyncStorage.getItem("userData");
+          if (userData) {
+            const parsedData = JSON.parse(userData);
+            setUserName(parsedData.name || "Guest");
+            setUserEmail(parsedData.email || "");
+            setUserRole(parsedData.role || "Student");
+            setTempName(parsedData.name || "Guest");
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
+        }
+      };
+
+      loadUserData();
+    }, [])
+  );
+
+  const handleSaveName = async () => {
+    if (!tempName.trim()) {
+      showToast("error", "Name Required", "Please enter a name");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await authAPI.updateProfile({ name: tempName });
+      if (response.success) {
+        setUserName(tempName);
+        await AsyncStorage.setItem(
+          "userData",
+          JSON.stringify({
+            name: tempName,
+            email: userEmail,
+            role: userRole,
+          })
+        );
+        showToast("success", "Success", "Profile name updated!");
+        setShowEditModal(false);
+      } else {
+        showToast("error", "Update Failed", response.error || "Please try again");
+      }
+    } catch (error) {
+      showToast("error", "Error", "Failed to update profile");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // --- FIX APPLIED HERE: Removed unnecessary setTimeout ---
+  const handleChangePassword = async () => {
+    if (!oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()) {
+      showToast("error", "All Fields Required", "Please fill in all fields");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      showToast("error", "Password Mismatch", "New passwords do not match");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      showToast(
+        "error",
+        "Weak Password",
+        "Password must be at least 8 characters with uppercase, lowercase, number & special character."
+      );
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await authAPI.changePassword({
+        oldPassword,
+        newPassword,
+        confirmPassword,
+      });
+
+      if (response.success) {
+        showToast("success", "Success", "Password changed successfully!");
+        setOldPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setShowPasswordModal(false);
+      } else {
+        showToast("error", "Failed", response.error || "Please try again");
+      }
+    } catch (error) {
+      showToast("error", "Error", "Failed to change password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // --- Logout handler with proper token cleanup ---
   const handleLogout = () => {
     console.log("handleLogout function called!");
     Alert.alert(
@@ -40,16 +167,25 @@ const ProfileScreen = () => {
         {
           text: "Logout",
           style: "destructive",
-          onPress: () => {
-            console.log("Logout confirmed - navigating to login");
-            router.replace("/auth/login");
+          onPress: async () => {
+            console.log("Logout confirmed - clearing data");
+            // Clear all stored data using authAPI
+            const result = await authAPI.logout();
+            if (result.success) {
+              showToast("success", "Logged out", "See you soon!", 1500);
+              setTimeout(() => {
+                router.replace("/auth/login");
+              }, 1600);
+            } else {
+              showToast("error", "Logout Failed", "Please try again");
+            }
           },
         },
       ],
       { cancelable: false }
     );
   };
-  // -----------------------------------------------------
+  // -------------------------------------------------
 
   const selectImageOption = (option) => {
     setShowImageModal(false);
@@ -123,7 +259,41 @@ const ProfileScreen = () => {
               <Ionicons name="mail-outline" size={16} color="#E5E7EB" />
               <Text style={styles.userEmail}>{userEmail}</Text>
             </View>
+
+            {/* Role */}
+            <View style={styles.roleContainer}>
+              <Ionicons name="person-outline" size={16} color="#E5E7EB" />
+              <Text style={styles.userRole}>{userRole}</Text>
+            </View>
           </LinearGradient>
+        </View>
+
+        {/* Change Password Button */}
+        <View style={{ width: "100%", marginTop: 16 }}>
+          <Pressable
+            onPress={() => setShowPasswordModal(true)}
+            style={({ pressed }) => [
+              { opacity: pressed ? 0.7 : 1, borderRadius: 16, overflow: "hidden" },
+            ]}
+          >
+            <LinearGradient
+              colors={["#F59E0B", "#F97316"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{
+                paddingVertical: 16,
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <Ionicons name="key-outline" size={20} color="#FFF" />
+              <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
+                Change Password
+              </Text>
+            </LinearGradient>
+          </Pressable>
         </View>
 
         {/* Help Button */}
@@ -203,21 +373,128 @@ const ProfileScreen = () => {
               onChangeText={setTempName}
               placeholder="Enter your name"
               placeholderTextColor="#9CA3AF"
+              editable={!loading}
             />
             <View style={styles.modalButtons}>
               <Pressable
                 style={styles.cancelButton}
                 onPress={() => setShowEditModal(false)}
+                disabled={loading}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </Pressable>
 
-              <Pressable style={styles.saveButton} onPress={handleSaveName}>
+              <Pressable style={styles.saveButton} onPress={handleSaveName} disabled={loading}>
                 <LinearGradient
                   colors={["#6366F1", "#8B5CF6"]}
                   style={styles.saveGradient}
                 >
-                  <Text style={styles.saveButtonText}>Save</Text>
+                  {loading ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Save</Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal visible={showPasswordModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Change Password</Text>
+              <Pressable onPress={() => setShowPasswordModal(false)} disabled={loading}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            {/* Old Password */}
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Old Password"
+                value={oldPassword}
+                onChangeText={setOldPassword}
+                secureTextEntry={!showOldPassword}
+                editable={!loading}
+                placeholderTextColor="#9CA3AF"
+              />
+              <Pressable onPress={() => setShowOldPassword(!showOldPassword)}>
+                <Ionicons
+                  name={showOldPassword ? "eye" : "eye-off"}
+                  size={20}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
+
+            {/* New Password */}
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="New Password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry={!showNewPassword}
+                editable={!loading}
+                placeholderTextColor="#9CA3AF"
+              />
+              <Pressable onPress={() => setShowNewPassword(!showNewPassword)}>
+                <Ionicons
+                  name={showNewPassword ? "eye" : "eye-off"}
+                  size={20}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
+
+            {/* Confirm Password */}
+            <View style={styles.passwordInputContainer}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPassword}
+                editable={!loading}
+                placeholderTextColor="#9CA3AF"
+              />
+              <Pressable onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                <Ionicons
+                  name={showConfirmPassword ? "eye" : "eye-off"}
+                  size={20}
+                  color="#6B7280"
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setShowPasswordModal(false)}
+                disabled={loading}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.saveButton}
+                onPress={handleChangePassword}
+                disabled={loading}
+              >
+                <LinearGradient
+                  colors={["#F59E0B", "#F97316"]}
+                  style={styles.saveGradient}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>Update</Text>
+                  )}
                 </LinearGradient>
               </Pressable>
             </View>
@@ -254,8 +531,6 @@ const ProfileScreen = () => {
               </View>
               <Text style={styles.imageOptionText}>Choose from Gallery</Text>
             </Pressable>
-
-            {profileImage && (
               <Pressable
                 style={styles.imageOption}
                 onPress={() => {
@@ -354,13 +629,17 @@ const styles = StyleSheet.create({
   nameContainer: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 },
   userName: { fontSize: 26, fontWeight: "700", color: "#FFFFFF" },
   editButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255, 255, 255, 0.2)", alignItems: "center", justifyContent: "center" },
-  emailContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12 },
+  emailContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12, marginBottom: 8 },
   userEmail: { fontSize: 15, color: "#E5E7EB", fontWeight: "500" },
+  roleContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12 },
+  userRole: { fontSize: 15, color: "#E5E7EB", fontWeight: "500" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
   modalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24, width: "100%", elevation: 10, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: "700", color: "#1F2937" },
   input: { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 16, fontSize: 16, color: "#1F2937", borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 20 },
+  passwordInputContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB", borderRadius: 12, borderWidth: 1, borderColor: "#E5E7EB", paddingHorizontal: 12, marginBottom: 12 },
+  passwordInput: { flex: 1, padding: 16, fontSize: 16, color: "#1F2937" },
   modalButtons: { flexDirection: "row", gap: 12 },
   cancelButton: { flex: 1, backgroundColor: "#F3F4F6", borderRadius: 12, paddingVertical: 14, alignItems: "center" },
   cancelButtonText: { fontSize: 16, fontWeight: "600", color: "#6B7280" },

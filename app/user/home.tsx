@@ -1,6 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -14,6 +14,7 @@ import {
   View,
   ScrollView,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 const HomeScreen: React.FC = () => {
@@ -21,10 +22,62 @@ const HomeScreen: React.FC = () => {
   const [showRecordModal, setShowRecordModal] = useState(false);
   const slideAnim = useRef(new Animated.Value(600)).current;
 
+  // 👤 User state
+  const [userName, setUserName] = useState("Guest");
+  const [greeting, setGreeting] = useState("Good Evening");
+
   // ⏱ Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 📚 Fetch user data and set greeting
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsedData = JSON.parse(userData);
+          setUserName(parsedData.name || "Guest");
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
+      }
+    };
+
+    loadUserData();
+
+    // Set greeting based on time of day
+    const now = new Date();
+    const hour = now.getHours();
+
+    if (hour >= 5 && hour < 12) {
+      setGreeting("Good Morning");
+    } else if (hour >= 12 && hour < 18) {
+      setGreeting("Good Afternoon");
+    } else {
+      setGreeting("Good Evening");
+    }
+  }, []);
+
+  // 🔄 Reload user data whenever screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadUserData = async () => {
+        try {
+          const userData = await AsyncStorage.getItem("userData");
+          if (userData) {
+            const parsedData = JSON.parse(userData);
+            setUserName(parsedData.name || "Guest");
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
+        }
+      };
+
+      loadUserData();
+    }, [])
+  );
 
   // 🎞 Modal animation
   useEffect(() => {
@@ -120,7 +173,7 @@ const HomeScreen: React.FC = () => {
 </View>
 
         <View style={styles.greetingContainer}>
-          <Text style={styles.greetingText}>Good Afternoon, Imaan 👋</Text>
+          <Text style={styles.greetingText}>{greeting}, {userName} 👋</Text>
           <Text style={styles.subGreeting}>Ready to start your next meeting?</Text>
         </View>
 
