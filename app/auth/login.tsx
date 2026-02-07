@@ -1,31 +1,70 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { showToast } from "../../utils/ToastHelper"; // import helper
+import { showToast } from "../../utils/ToastHelper";
+import { authAPI } from "../../utils/api";
+import { initializeSocket, joinNotificationRoom } from "../../utils/socket";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const handleLogin = () => {
-    if (!email.trim()) return showToast("error", "Email Required", "Please enter your email address.");
-    if (!validateEmail(email)) return showToast("error", "Invalid Email", "Enter a valid email format.");
-    if (!password.trim()) return showToast("error", "Password Required", "Please enter your password.");
+  const handleLogin = async () => {
+    if (!email.trim()) {
+      showToast("error", "Email Required", "Please enter your email address.");
+      return;
+    }
+    if (!validateEmail(email)) {
+      showToast("error", "Invalid Email", "Enter a valid email format.");
+      return;
+    }
+    if (!password.trim()) {
+      showToast("error", "Password Required", "Please enter your password.");
+      return;
+    }
 
-    if (email === "test@example.com" && password === "123456") {
-      showToast("success", "Login Successful 🎉", "Welcome back!");
+    setLoading(true);
 
-      // Delay navigation AFTER toast
-      setTimeout(() => {
-        router.replace("/user/home");
-      }, 2100); // slightly longer than toast visibility
-    } else {
-      showToast("error", "Invalid Credentials", "Please try again.");
+    try {
+      const result = await authAPI.login(email, password);
+
+      if (result.success) {
+        showToast("success", "Login Successful 🎉", "Welcome back!", 2500);
+        
+        // Get user ID from AsyncStorage
+        const userId = await AsyncStorage.getItem('userId');
+        
+        // Initialize socket connection after successful login
+        if (userId) {
+          try {
+            console.log('[Login] Initializing socket connection...');
+            await initializeSocket();
+            console.log('[Login] Socket initialized, joining notification room...');
+            await joinNotificationRoom(userId);
+            console.log('[Login] Socket connected and joined user room:', userId);
+          } catch (socketError) {
+            console.error('[Login] Error initializing socket:', socketError);
+            // Don't block login if socket fails, just log the error
+          }
+        }
+        
+        setTimeout(() => {
+          router.replace("/user/home");
+        }, 2600);
+      } else {
+        showToast("error", "Login Failed", result.error || "Invalid credentials.");
+      }
+    } catch (_error) {
+      showToast("error", "Error", "An unexpected error occurred.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -68,8 +107,16 @@ export default function LoginScreen() {
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
+      <TouchableOpacity 
+        style={[styles.button, loading && styles.buttonDisabled]} 
+        onPress={handleLogin}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Login</Text>
+        )}
       </TouchableOpacity>
 
       <View style={styles.signupContainer}>
@@ -150,6 +197,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+  },
+  buttonDisabled: {
+    backgroundColor: "#9CA3AF",
   },
   buttonText: {
     color: "#fff",

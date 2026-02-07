@@ -1,66 +1,86 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { Link, router } from "expo-router";
+import { authAPI } from "../../utils/api";
+import { showToast } from "../../utils/ToastHelper";
 
 export default function SignupScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const validateEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-const validatePassword = (password) => {
-  // Minimum 6 characters, at least one letter and one number
-  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{6,}$/;
-  return passwordRegex.test(password);
-};
+  const validatePassword = (password) => {
+    // Minimum 8 characters, at least one uppercase, one lowercase, one number, and one special character
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
+    return passwordRegex.test(password);
+  };
 
-const handleSignup = () => {
-  if (!name.trim()) {
-    Alert.alert("Invalid Name", "Please enter your full name.");
-    return;
-  }
+  const handleSignup = async () => {
+    if (!name.trim()) {
+      showToast("error", "Invalid Name", "Please enter your full name.");
+      return;
+    }
 
-  if (name.trim().length < 3) {
-    Alert.alert("Name Too Short", "Name must be at least 3 characters long.");
-    return;
-  }
+    if (name.trim().length < 3) {
+      showToast("error", "Name Too Short", "Name must be at least 3 characters long.");
+      return;
+    }
 
-  if (!email.trim()) {
-    Alert.alert("Invalid Email", "Please enter your email address.");
-    return;
-  }
+    if (!email.trim()) {
+      showToast("error", "Invalid Email", "Please enter your email address.");
+      return;
+    }
 
-  if (!validateEmail(email)) {
-    Alert.alert("Email Format Error", "Please enter a valid email address.");
-    return;
-  }
+    if (!validateEmail(email)) {
+      showToast("error", "Email Format Error", "Please enter a valid email address.");
+      return;
+    }
 
-  if (!password.trim()) {
-    Alert.alert("Invalid Password", "Please enter a password.");
-    return;
-  }
+    if (!password.trim()) {
+      showToast("error", "Invalid Password", "Please enter a password.");
+      return;
+    }
 
-  if (!validatePassword(password)) {
-    Alert.alert(
-      "Weak Password",
-      "Password must be at least 6 characters and contain letters & numbers."
-    );
-    return;
-  }
+    if (!validatePassword(password)) {
+      showToast(
+        "error",
+        "Weak Password",
+        "Password must be at least 8 characters with uppercase, lowercase, number & special character."
+      );
+      return;
+    }
 
-  if (!role) {
-    Alert.alert("Role Required", "Please select your role.");
-    return;
-  }
+    if (!role) {
+      showToast("error", "Role Required", "Please select your role.");
+      return;
+    }
 
-  Alert.alert("Success", `Account created successfully as ${role}!`);
-  router.replace("/auth/login");
-};
+    setLoading(true);
+
+    try {
+      const result = await authAPI.signup(name, email, password, role);
+
+      if (result.success) {
+        showToast("success", "Success 🎉", `Account created as ${role}!`, 2500);
+        setTimeout(() => {
+          router.replace("/user/home");
+        }, 2600);
+      } else {
+        showToast("error", "Signup Failed", result.error || "Please try again.");
+      }
+    } catch (_error) {
+      showToast("error", "Error", "An unexpected error occurred.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
   const roles = ["Student", "Teacher", "Other"];
@@ -116,8 +136,16 @@ const handleSignup = () => {
         ))}
       </View>
 
-      <TouchableOpacity style={styles.button} onPress={handleSignup}>
-        <Text style={styles.buttonText}>Sign Up</Text>
+      <TouchableOpacity 
+        style={[styles.button, loading && styles.buttonDisabled]} 
+        onPress={handleSignup}
+        disabled={loading}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Sign Up</Text>
+        )}
       </TouchableOpacity>
 
       <Link href="/auth/login" style={styles.link}>
@@ -163,6 +191,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   button: { backgroundColor: "#4F46E5", padding: 15, borderRadius: 10, marginTop: 10 },
+  buttonDisabled: { backgroundColor: "#9CA3AF" },
   buttonText: { color: "#fff", fontSize: 16, textAlign: "center", fontWeight: "bold" },
   link: { marginTop: 20, textAlign: "center", color: "#007AFF" },
   linkBold: { fontWeight: "bold" },
