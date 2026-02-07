@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { showToast } from "../../utils/ToastHelper";
 import { authAPI } from "../../utils/api";
+import { initializeSocket, joinNotificationRoom } from "../../utils/socket";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -35,6 +37,24 @@ export default function LoginScreen() {
 
       if (result.success) {
         showToast("success", "Login Successful 🎉", "Welcome back!", 2500);
+        
+        // Get user ID from AsyncStorage
+        const userId = await AsyncStorage.getItem('userId');
+        
+        // Initialize socket connection after successful login
+        if (userId) {
+          try {
+            console.log('[Login] Initializing socket connection...');
+            await initializeSocket();
+            console.log('[Login] Socket initialized, joining notification room...');
+            await joinNotificationRoom(userId);
+            console.log('[Login] Socket connected and joined user room:', userId);
+          } catch (socketError) {
+            console.error('[Login] Error initializing socket:', socketError);
+            // Don't block login if socket fails, just log the error
+          }
+        }
+        
         setTimeout(() => {
           router.replace("/user/home");
         }, 2600);
