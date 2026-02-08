@@ -36,28 +36,9 @@ export default function LoginScreen() {
       const result = await authAPI.login(email, password);
 
       if (result.success) {
-        showToast("success", "Login Successful 🎉", "Welcome back!", 2500);
-
-        // Get user ID from AsyncStorage
-        const userId = await AsyncStorage.getItem('userId');
-
-        // Initialize socket connection after successful login
-        if (userId) {
-          try {
-            console.log('[Login] Initializing socket connection...');
-            await initializeSocket();
-            console.log('[Login] Socket initialized, joining notification room...');
-            await joinNotificationRoom(userId);
-            console.log('[Login] Socket connected and joined user room:', userId);
-          } catch (socketError) {
-            console.error('[Login] Error initializing socket:', socketError);
-            // Don't block login if socket fails, just log the error
-          }
-        }
-
-        setTimeout(() => {
-          router.replace("/(tabs)");
-        }, 2600);
+        showToast("success", "Login Successful 🎉", "Welcome back!", 1500);
+        // Socket connection and redirection are now handled centrally 
+        // by RootLayout reacting to the auth status change.
       } else {
         showToast("error", "Login Failed", result.error || "Invalid credentials.");
       }

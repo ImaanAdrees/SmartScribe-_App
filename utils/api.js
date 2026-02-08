@@ -45,6 +45,7 @@ export const authAPI = {
           email: data.email,
           role: data.role,
         }));
+        await AsyncStorage.setItem('userId', data._id);
         
         if (authAPI.onStatusChange) authAPI.onStatusChange(true);
       }
@@ -95,6 +96,7 @@ export const authAPI = {
           role: profileData._id ? profileData.role : 'Student',
           isAdmin: data.isAdmin,
         }));
+        await AsyncStorage.setItem('userId', data._id);
 
         if (authAPI.onStatusChange) authAPI.onStatusChange(true);
       }
@@ -107,6 +109,18 @@ export const authAPI = {
 
   logout: async () => {
     try {
+      const headers = await getAuthHeaders();
+      // Notify the backend about the logout
+      try {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers,
+        });
+      } catch (backendError) {
+        console.warn('[API] Backend logout call failed:', backendError.message);
+        // We still proceed with local cleanup to ensure user can "log out" locally
+      }
+
       // Clear all stored data including token, user info, and any cached state
       await AsyncStorage.multiRemove(['userToken', 'userData', 'userId']);
       

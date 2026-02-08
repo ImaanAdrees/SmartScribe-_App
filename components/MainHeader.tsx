@@ -2,9 +2,11 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, StatusBar } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useNotifications } from "../context/NotificationContext";
 
 const MainHeader: React.FC = () => {
     const router = useRouter();
+    const { unreadCount } = useNotifications();
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -18,7 +20,16 @@ const MainHeader: React.FC = () => {
                         style={styles.iconButton}
                         onPress={() => router.push("/user/notification")}
                     >
-                        <Ionicons name="notifications-outline" size={28} color="#4F46E5" />
+                        <View>
+                            <Ionicons name="notifications-outline" size={28} color="#4F46E5" />
+                            {unreadCount > 0 && (
+                                <View style={styles.badgeContainer}>
+                                    <Text style={styles.badgeText}>
+                                        {unreadCount > 9 ? "9+" : unreadCount}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -61,5 +72,24 @@ const styles = StyleSheet.create({
     iconButton: {
         marginLeft: 15,
         padding: 2,
+    },
+    badgeContainer: {
+        position: 'absolute',
+        right: -6,
+        top: -3,
+        backgroundColor: '#EF4444',
+        borderRadius: 10,
+        minWidth: 18,
+        height: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: '#FFF',
+        paddingHorizontal: 2,
+    },
+    badgeText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: 'bold',
     },
 });
