@@ -5,6 +5,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import MainHeader from '@/components/MainHeader';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -16,7 +17,8 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: activeTintColor,
         tabBarInactiveTintColor: inactiveTintColor,
-        headerShown: false,
+        headerShown: true,
+        header: () => <MainHeader />,
         tabBarButton: HapticTab,
         tabBarStyle: {
           borderTopWidth: 1,

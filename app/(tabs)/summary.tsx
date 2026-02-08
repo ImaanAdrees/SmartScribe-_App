@@ -94,17 +94,6 @@ const SummaryScreen = () => {
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient colors={["#7B2FF7", "#F107A3"]} style={styles.container}>
-        {/* 🔹 Top Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={toggleSidebar}>
-            <Ionicons name="menu" size={26} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Weekly Team Standup</Text>
-          <TouchableOpacity onPress={handleEmailShare} style={styles.emailIconButton}>
-            <Ionicons name="mail-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
         {/* 🔹 Meeting Info */}
         <View style={styles.meetingInfo}>
           <Text style={styles.dateText}>📅 2023-10-15 • 45 min • 3 participants</Text>
@@ -116,7 +105,7 @@ const SummaryScreen = () => {
 
         {/* 🔹 Tabs */}
         <View style={styles.tabContainer}>
-          {[ "Summary" ].map((tab) => (
+          {["Summary"].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tabButton, activeTab === tab && styles.activeTab]}
@@ -281,11 +270,11 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems:"center",
+    alignItems: "center",
     backgroundColor: "#fff",
     paddingHorizontal: 20,
-    paddingBottom:40,
-    borderTopWidth:20,
+    paddingBottom: 40,
+    borderTopWidth: 20,
     borderColor: "#fff",
   },
   editButton: {

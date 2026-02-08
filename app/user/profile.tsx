@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "../../utils/api";
 import { showToast } from "../../utils/ToastHelper";
+import { disconnectSocket } from "../../utils/socket";
 
 const ProfileScreen = () => {
   const router = useRouter();
@@ -30,6 +31,7 @@ const ProfileScreen = () => {
   const [tempName, setTempName] = useState("");
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Password change states
   const [oldPassword, setOldPassword] = useState("");
@@ -156,38 +158,37 @@ const ProfileScreen = () => {
     }
   }
 
-  // --- Logout handler with proper token cleanup ---
+  // --- Logout handlers ---
   const handleLogout = () => {
-    console.log("handleLogout function called!");
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            console.log("Logout confirmed - clearing data");
-            // Clear all stored data using authAPI
-            const result = await authAPI.logout();
-            if (result.success) {
-              showToast("success", "Logged out", "See you soon!", 1500);
-              setTimeout(() => {
-                router.replace("/auth/login");
-              }, 1600);
-            } else {
-              showToast("error", "Logout Failed", "Please try again");
-            }
-          },
-        },
-      ],
-      { cancelable: false }
-    );
+    console.log("[Profile] Opening Logout Confirmation Modal");
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    console.log("[Profile] Logout confirmed - clearing data");
+    setShowLogoutModal(false);
+    try {
+      // Disconnect socket connection
+      disconnectSocket();
+
+      // Clear all stored data using authAPI
+      const result = await authAPI.logout();
+      if (result.success) {
+        console.log("[Profile] Local data cleared, redirecting to /auth/login...");
+        showToast("success", "Logged out", "See you soon!", 1500);
+        router.replace("/auth/login");
+      } else {
+        console.warn("[Profile] Logout failed:", result.error);
+        showToast("error", "Logout Failed", "Please try again");
+      }
+    } catch (error) {
+      console.error("[Profile] Logout error:", error);
+      showToast("error", "Logout Error", "An unexpected error occurred.");
+    }
   };
   // -------------------------------------------------
 
-  const selectImageOption = (option) => {
+  const selectImageOption = (option: any) => {
     setShowImageModal(false);
     // In a real app, you'd integrate an image picker here:
     // if (option === "camera") { ... take photo logic ... }
@@ -502,6 +503,41 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
+      {/* Logout Confirmation Modal */}
+      <Modal visible={showLogoutModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.logoutModalContent}>
+              <View style={styles.logoutIconContainer}>
+                <Ionicons name="log-out" size={40} color="#EF4444" />
+              </View>
+              <Text style={styles.logoutModalTitle}>Logout</Text>
+              <Text style={styles.logoutModalSubmessage}>
+                Are you sure you want to logout of SmartScribe?
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable style={styles.logoutConfirmButton} onPress={confirmLogout}>
+                <LinearGradient
+                  colors={["#EF4444", "#DC2626"]}
+                  style={styles.saveGradient}
+                >
+                  <Text style={styles.saveButtonText}>Logout</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Image Selection Modal */}
       <Modal visible={showImageModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -531,21 +567,20 @@ const ProfileScreen = () => {
               </View>
               <Text style={styles.imageOptionText}>Choose from Gallery</Text>
             </Pressable>
-              <Pressable
-                style={styles.imageOption}
-                onPress={() => {
-                  setProfileImage(null);
-                  setShowImageModal(false);
-                }}
+            <Pressable
+              style={styles.imageOption}
+              onPress={() => {
+                setProfileImage(null);
+                setShowImageModal(false);
+              }}
+            >
+              <View
+                style={[styles.imageOptionIcon, { backgroundColor: "#FEE2E2" }]}
               >
-                <View
-                  style={[styles.imageOptionIcon, { backgroundColor: "#FEE2E2" }]}
-                >
-                  <Ionicons name="trash" size={24} color="#EF4444" />
-                </View>
-                <Text style={styles.imageOptionText}>Remove Photo</Text>
-              </Pressable>
-            )}
+                <Ionicons name="trash" size={24} color="#EF4444" />
+              </View>
+              <Text style={styles.imageOptionText}>Remove Photo</Text>
+            </Pressable>
 
             <Pressable
               style={styles.imageModalCancel}
@@ -646,6 +681,39 @@ const styles = StyleSheet.create({
   saveButton: { flex: 1, borderRadius: 12, overflow: "hidden" },
   saveGradient: { paddingVertical: 14, alignItems: "center" },
   saveButtonText: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
+
+  // Logout Modal Styles
+  logoutModalContent: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  logoutIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  logoutModalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  logoutModalSubmessage: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 10,
+  },
+  logoutConfirmButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
   imageModalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24, width: "100%", elevation: 10, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
   imageModalTitle: { fontSize: 20, fontWeight: "700", color: "#1F2937", marginBottom: 20, textAlign: "center" },
   imageOption: { flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB", padding: 16, borderRadius: 12, marginBottom: 12 },

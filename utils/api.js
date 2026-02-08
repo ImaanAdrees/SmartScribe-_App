@@ -13,6 +13,8 @@ const getAuthHeaders = async () => {
 
 // Auth APIs
 export const authAPI = {
+  onStatusChange: (status) => {}, // Callback to notify root layout of auth changes
+  
   signup: async (name, email, password, role) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/signup`, {
@@ -43,6 +45,8 @@ export const authAPI = {
           email: data.email,
           role: data.role,
         }));
+        
+        if (authAPI.onStatusChange) authAPI.onStatusChange(true);
       }
 
       return { success: true, data };
@@ -91,6 +95,8 @@ export const authAPI = {
           role: profileData._id ? profileData.role : 'Student',
           isAdmin: data.isAdmin,
         }));
+
+        if (authAPI.onStatusChange) authAPI.onStatusChange(true);
       }
 
       return { success: true, data };
@@ -101,8 +107,14 @@ export const authAPI = {
 
   logout: async () => {
     try {
-      // Clear all stored data
-      await AsyncStorage.multiRemove(['userToken', 'userData']);
+      // Clear all stored data including token, user info, and any cached state
+      await AsyncStorage.multiRemove(['userToken', 'userData', 'userId']);
+      
+      // Notify listeners if any (like RootLayout)
+      if (authAPI.onStatusChange) {
+        authAPI.onStatusChange(false);
+      }
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };

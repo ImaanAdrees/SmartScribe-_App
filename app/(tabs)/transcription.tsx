@@ -50,17 +50,6 @@ const TranscriptionScreen = () => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <LinearGradient colors={["#EEF2FF", "#F9FAFB"]} style={styles.gradient}>
-        {/* 🔹 Top Bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.menuButton} onPress={toggleSidebar}>
-            <Ionicons name="menu" size={26} color="#4F46E5" />
-          </TouchableOpacity>
-          <Text style={styles.topBarTitle}>Transcription</Text>
-          <TouchableOpacity style={styles.moreButton}>
-
-          </TouchableOpacity>
-        </View>
-
         {/* 🔹 Header Card */}
         <View style={styles.headerCard}>
           <LinearGradient colors={["#6366F1", "#8B5CF6"]} style={styles.headerGradient}>

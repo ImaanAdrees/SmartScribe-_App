@@ -2,28 +2,53 @@ import React, { useEffect, useState } from "react";
 import { Stack, useRouter } from "expo-router";
 import SplashScreen from "./SplashScreen";
 import Toast from "react-native-toast-message";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { authAPI } from "../utils/api";
 
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // replace with AsyncStorage / Firebase
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-      setShowWelcome(true);
-    }, 2000);
-    return () => clearTimeout(timer);
+    const checkAuthStatus = async () => {
+      try {
+        const token = await AsyncStorage.getItem("userToken");
+        setIsLoggedIn(!!token);
+      } catch (error) {
+        console.error("[RootLayout] Error checking auth status:", error);
+      } finally {
+        // Wait a bit to show splash screen
+        setTimeout(() => setIsLoading(false), 2000);
+      }
+    };
+
+    // Register callback for auth status changes
+    authAPI.onStatusChange = (status: boolean) => {
+      console.log("[RootLayout] Auth status changed:", status);
+      setIsLoggedIn(status);
+    };
+
+    checkAuthStatus();
+
+    // Cleanup callback on unmount
+    return () => {
+      authAPI.onStatusChange = () => { };
+    };
   }, []);
 
   useEffect(() => {
     if (!isLoading) {
-      if (showWelcome) router.replace("/auth/welcome");
-      else if (isLoggedIn) router.replace("/(tabs)");
-      else router.replace("/auth/login");
+      console.log("[RootLayout] Auth check - isLoading:", isLoading, "isLoggedIn:", isLoggedIn);
+      if (isLoggedIn) {
+        console.log("[RootLayout] Redirecting to /(tabs)");
+        router.replace("/(tabs)");
+      } else {
+        console.log("[RootLayout] Redirecting to /auth/login");
+        router.replace("/auth/login");
+      }
     }
-  }, [isLoading, showWelcome, isLoggedIn]);
+  }, [isLoading, isLoggedIn]);
 
   if (isLoading) return <SplashScreen />;
 

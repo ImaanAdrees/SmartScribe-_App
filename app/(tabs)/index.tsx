@@ -149,29 +149,8 @@ const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 🌅 Header */}
+      {/* 🌅 Header Gradient (now just for greeting/mic) */}
       <LinearGradient colors={["#4F46E5", "#1E3A8A"]} style={styles.headerGradient}>
-        <View style={styles.headerTop}>
-          {/* App Title */}
-          <Text style={styles.headerTitle}>SmartScribe</Text>
-
-          {/* Notification & Profile Icons */}
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {/* Notification Icon */}
-            <TouchableOpacity
-              style={{ marginRight: 12 }}
-              onPress={() => router.push('/user/notification')} // navigate to notifications page
-            >
-              <Ionicons name="notifications-outline" size={30} color="#FFF" />
-            </TouchableOpacity>
-
-            {/* Profile Icon */}
-            <TouchableOpacity style={styles.profileIcon} onPress={() => router.push('/user/profile')}>
-              <Ionicons name="person-circle-outline" size={42} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingText}>{greeting}, {userName} 👋</Text>
           <Text style={styles.subGreeting}>Ready to start your next meeting?</Text>

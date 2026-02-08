@@ -114,13 +114,6 @@ export default function RecordingsScreen() {
       colors={['#ffffffff', '#f9f9f9ff']}
       style={styles.container}
     >
-      <View style={styles.header}>
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>📼 My Recordings</Text>
-          <Text style={styles.subtitle}>{recordings.length} saved recording{recordings.length !== 1 ? 's' : ''}</Text>
-        </View>
-      </View>
-
       <FlatList
         data={recordings}
         keyExtractor={(item) => item.id}
@@ -142,7 +135,7 @@ export default function RecordingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 50,
+    paddingTop: 10,
   },
   header: {
     paddingHorizontal: 20,
