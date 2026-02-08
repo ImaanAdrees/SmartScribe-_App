@@ -44,6 +44,7 @@ export const authAPI = {
           name: data.name,
           email: data.email,
           role: data.role,
+          image: data.image || null,
         }));
         await AsyncStorage.setItem('userId', data._id);
         
@@ -89,12 +90,15 @@ export const authAPI = {
         
         const profileData = await profileResponse.json();
         
+        console.log('[authAPI] Profile data received:', profileData);
+        
         await AsyncStorage.setItem('userData', JSON.stringify({
           _id: data._id,
           name: profileData._id ? profileData.name : data.name || email.split('@')[0],
           email: profileData._id ? profileData.email : email,
           role: profileData._id ? profileData.role : 'Student',
           isAdmin: data.isAdmin,
+          image: profileData.image || null,
         }));
         await AsyncStorage.setItem('userId', data._id);
 

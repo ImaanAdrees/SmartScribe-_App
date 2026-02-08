@@ -1,12 +1,48 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, StatusBar } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, Platform, StatusBar, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNotifications } from "../context/NotificationContext";
+
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
+// Helper to construct full image URL
+const getImageUrl = (imagePath: string | null) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http')) return imagePath;
+    const fullUrl = `${API_URL}${imagePath}`;
+    console.log('[MainHeader] Constructed image URL:', fullUrl);
+    return fullUrl;
+};
 
 const MainHeader: React.FC = () => {
     const router = useRouter();
     const { unreadCount } = useNotifications();
+    const [profileImage, setProfileImage] = useState<string | null>(null);
+    const [imageError, setImageError] = useState(false);
+
+    // Load profile image on mount and when screen comes into focus
+    useFocusEffect(
+        React.useCallback(() => {
+            const loadProfileImage = async () => {
+                try {
+                    const userData = await AsyncStorage.getItem("userData");
+                    console.log('[MainHeader] userData from AsyncStorage:', userData);
+                    if (userData) {
+                        const parsed = JSON.parse(userData);
+                        console.log('[MainHeader] Parsed user data:', parsed);
+                        console.log('[MainHeader] Profile image path:', parsed.image);
+                        setProfileImage(parsed.image || null);
+                        setImageError(false);
+                    }
+                } catch (error) {
+                    console.error("[MainHeader] Error loading profile image:", error);
+                }
+            };
+            loadProfileImage();
+        }, [])
+    );
 
     return (
         <SafeAreaView style={styles.safeArea}>
@@ -36,7 +72,21 @@ const MainHeader: React.FC = () => {
                         style={styles.iconButton}
                         onPress={() => router.push("/user/profile")}
                     >
-                        <Ionicons name="person-circle-outline" size={32} color="#4F46E5" />
+                        {profileImage && !imageError ? (
+                            <Image
+                                source={{ uri: getImageUrl(profileImage) as string }}
+                                style={styles.profileImage}
+                                onError={(error) => {
+                                    console.error('[MainHeader] Image load error:', error.nativeEvent.error);
+                                    setImageError(true);
+                                }}
+                                onLoad={() => {
+                                    console.log('[MainHeader] Image loaded successfully');
+                                }}
+                            />
+                        ) : (
+                            <Ionicons name="person-circle-outline" size={32} color="#4F46E5" />
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -91,5 +141,12 @@ const styles = StyleSheet.create({
         color: '#FFF',
         fontSize: 10,
         fontWeight: 'bold',
+    },
+    profileImage: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        borderWidth: 2,
+        borderColor: '#4F46E5',
     },
 });

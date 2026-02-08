@@ -303,6 +303,46 @@ const ProfileScreen = () => {
     }
   };
 
+  const removeProfilePicture = async () => {
+    setShowImageModal(false);
+    setLoading(true);
+    
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      
+      const response = await fetch(`${API_URL}/api/users/profile/image`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setProfileImage(null);
+
+        // Update local storage
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          parsed.image = null;
+          await AsyncStorage.setItem("userData", JSON.stringify(parsed));
+        }
+
+        showToast("success", "Removed", "Profile picture removed");
+      } else {
+        throw new Error(data.message || "Failed to remove image");
+      }
+    } catch (error: any) {
+      console.error("Remove Error:", error);
+      showToast("error", "Remove Failed", error.message || "Please try again");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <LinearGradient colors={["#EEF2FF", "#F9FAFB"]} style={styles.container}>
       {/* Header */}
@@ -676,17 +716,17 @@ const ProfileScreen = () => {
             </Pressable>
             <Pressable
               style={styles.imageOption}
-              onPress={() => {
-                setProfileImage(null);
-                setShowImageModal(false);
-              }}
+              onPress={removeProfilePicture}
+              disabled={loading || !profileImage}
             >
               <View
-                style={[styles.imageOptionIcon, { backgroundColor: "#FEE2E2" }]}
+                style={[styles.imageOptionIcon, { backgroundColor: "#FEE2E2", opacity: (!profileImage || loading) ? 0.5 : 1 }]}
               >
                 <Ionicons name="trash" size={24} color="#EF4444" />
               </View>
-              <Text style={styles.imageOptionText}>Remove Photo</Text>
+              <Text style={[styles.imageOptionText, { opacity: (!profileImage || loading) ? 0.5 : 1 }]}>
+                {profileImage ? "Remove Photo" : "No Photo to Remove"}
+              </Text>
             </Pressable>
 
             <Pressable
