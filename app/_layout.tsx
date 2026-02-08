@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Stack,useRouter } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import SplashScreen from "./SplashScreen";
 import Toast from "react-native-toast-message";
 
@@ -20,7 +20,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!isLoading) {
       if (showWelcome) router.replace("/auth/welcome");
-      else if (isLoggedIn) router.replace("/user/home");
+      else if (isLoggedIn) router.replace("/(tabs)");
       else router.replace("/auth/login");
     }
   }, [isLoading, showWelcome, isLoggedIn]);
@@ -31,6 +31,7 @@ export default function RootLayout() {
     <>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth" />
+        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="user" />
         <Stack.Screen name="meeting" />
       </Stack>

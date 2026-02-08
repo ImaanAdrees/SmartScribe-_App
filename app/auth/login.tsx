@@ -14,7 +14,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleLogin = async () => {
     if (!email.trim()) {
@@ -37,10 +37,10 @@ export default function LoginScreen() {
 
       if (result.success) {
         showToast("success", "Login Successful 🎉", "Welcome back!", 2500);
-        
+
         // Get user ID from AsyncStorage
         const userId = await AsyncStorage.getItem('userId');
-        
+
         // Initialize socket connection after successful login
         if (userId) {
           try {
@@ -54,9 +54,9 @@ export default function LoginScreen() {
             // Don't block login if socket fails, just log the error
           }
         }
-        
+
         setTimeout(() => {
-          router.replace("/user/home");
+          router.replace("/(tabs)");
         }, 2600);
       } else {
         showToast("error", "Login Failed", result.error || "Invalid credentials.");
@@ -107,8 +107,8 @@ export default function LoginScreen() {
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.button, loading && styles.buttonDisabled]} 
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleLogin}
         disabled={loading}
       >

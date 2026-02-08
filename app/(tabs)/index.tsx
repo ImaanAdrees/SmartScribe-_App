@@ -1,98 +1,452 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Animated,
+  Easing,
+  FlatList,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ScrollView,
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">hello</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+const HomeScreen: React.FC = () => {
+  const router = useRouter();
+  const [showRecordModal, setShowRecordModal] = useState(false);
+  const slideAnim = useRef(new Animated.Value(600)).current;
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  // 👤 User state
+  const [userName, setUserName] = useState("Guest");
+  const [greeting, setGreeting] = useState("Good Evening");
+
+  // ⏱ Timer state
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 📚 Fetch user data and set greeting
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsedData = JSON.parse(userData);
+          setUserName(parsedData.name || "Guest");
+        }
+      } catch (error) {
+        console.error("Error loading user data:", error);
+      }
+    };
+
+    loadUserData();
+
+    // Set greeting based on time of day
+    const now = new Date();
+    const hour = now.getHours();
+
+    if (hour >= 5 && hour < 12) {
+      setGreeting("Good Morning");
+    } else if (hour >= 12 && hour < 18) {
+      setGreeting("Good Afternoon");
+    } else {
+      setGreeting("Good Evening");
+    }
+  }, []);
+
+  // 🔄 Reload user data whenever screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      const loadUserData = async () => {
+        try {
+          const userData = await AsyncStorage.getItem("userData");
+          if (userData) {
+            const parsedData = JSON.parse(userData);
+            setUserName(parsedData.name || "Guest");
+          }
+        } catch (error) {
+          console.error("Error loading user data:", error);
+        }
+      };
+
+      loadUserData();
+    }, [])
   );
-}
+
+  // 🎞 Modal animation
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: showRecordModal ? 0 : 600,
+      duration: 300,
+      easing: showRecordModal ? Easing.out(Easing.ease) : Easing.in(Easing.ease),
+      useNativeDriver: true,
+    }).start();
+
+    if (showRecordModal) {
+      startTimer();
+    } else {
+      stopTimer();
+      setElapsedTime(0);
+      setIsPaused(false);
+    }
+
+    return () => stopTimer();
+  }, [showRecordModal]);
+
+  // 🧠 Handle timer start / stop
+  const startTimer = () => {
+    stopTimer();
+    timerRef.current = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  // ⏸ Pause or resume recording
+  const handlePauseToggle = () => {
+    if (isPaused) {
+      // resume
+      startTimer();
+    } else {
+      // pause
+      stopTimer();
+    }
+    setIsPaused((prev) => !prev);
+  };
+
+  // ⏳ Format time (MM:SS)
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
+
+  // 📄 Dummy transcription data
+  const transcriptions = [
+    { id: "1", title: "Marketing Sync", duration: "35 min", date: "2023-10-15", status: "Summarized" },
+    { id: "2", title: "Lecture: AI Ethics", duration: "1 hr 20 min", date: "2023-10-12", status: "Transcribed" },
+    { id: "3", title: "Client Onboarding Call", duration: "32 min", date: "2023-10-10", status: "Recorded" },
+  ];
+
+  // 🟥 Stop Recording
+  const handleStopRecording = () => {
+    stopTimer();
+    setShowRecordModal(false);
+    router.push({
+      pathname: "/(tabs)/transcription",
+      params: { duration: formatTime(elapsedTime) },
+    });
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* 🌅 Header */}
+      <LinearGradient colors={["#4F46E5", "#1E3A8A"]} style={styles.headerGradient}>
+        <View style={styles.headerTop}>
+          {/* App Title */}
+          <Text style={styles.headerTitle}>SmartScribe</Text>
+
+          {/* Notification & Profile Icons */}
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {/* Notification Icon */}
+            <TouchableOpacity
+              style={{ marginRight: 12 }}
+              onPress={() => router.push('/user/notification')} // navigate to notifications page
+            >
+              <Ionicons name="notifications-outline" size={30} color="#FFF" />
+            </TouchableOpacity>
+
+            {/* Profile Icon */}
+            <TouchableOpacity style={styles.profileIcon} onPress={() => router.push('/user/profile')}>
+              <Ionicons name="person-circle-outline" size={42} color="#FFF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.greetingContainer}>
+          <Text style={styles.greetingText}>{greeting}, {userName} 👋</Text>
+          <Text style={styles.subGreeting}>Ready to start your next meeting?</Text>
+        </View>
+
+        {/* 🎙 Mic Button */}
+        <View style={styles.micContainer}>
+          <TouchableOpacity
+            style={styles.micButton}
+            onPress={() => setShowRecordModal(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="mic-outline" size={42} color="#4F46E5" />
+          </TouchableOpacity>
+          <Text style={styles.tapText}>Tap to record your next meeting or lecture</Text>
+        </View>
+      </LinearGradient>
+
+      {/* 📁 Quick Access Cards */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingVertical: 12,  // ⬅️ adds top & bottom margin for cards
+        }}
+        style={{ marginTop: 20, marginBottom: 10, }}
+      >
+        <TouchableOpacity style={styles.card} onPress={() => router.push("/(tabs)/transcription")}>
+          <Ionicons name="document-text-outline" size={26} color="#4F46E5" />
+          <Text style={styles.cardTitle}>My Transcriptions</Text>
+          <Text style={styles.cardSubtitle}>3 saved meetings</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card} onPress={() => router.push("/(tabs)/summary")}>
+          <MaterialCommunityIcons
+            name="calendar-clock-outline"
+            size={26}
+            color="#4F46E5"
+          />
+          <Text style={styles.cardTitle}>Summaries</Text>
+          <Text style={styles.cardSubtitle}>View & edit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card} onPress={() => router.push("/(tabs)/recordings")}>
+          <MaterialCommunityIcons
+            name="microphone-outline"
+            size={26}
+            color="#4F46E5"
+          />
+          <Text style={styles.cardTitle}>Saved Recordings</Text>
+          <Text style={styles.cardSubtitle}>View & edit</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+
+      {/* 📜 Recent Transcriptions */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Recent Transcriptions</Text>
+      </View>
+
+      <FlatList
+        data={transcriptions}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <View style={styles.listItem}>
+            <View style={styles.listLeft}>
+              <Text style={styles.listTitle}>{item.title}</Text>
+              <Text style={styles.listSubtitle}>
+                {item.duration} • {item.date}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor:
+                    item.status === "Summarized"
+                      ? "#DCFCE7"
+                      : item.status === "Transcribed"
+                        ? "#E0E7FF"
+                        : "#F3E8FF",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusText,
+                  {
+                    color:
+                      item.status === "Summarized"
+                        ? "#16A34A"
+                        : item.status === "Transcribed"
+                          ? "#4F46E5"
+                          : "#7E22CE",
+                  },
+                ]}
+              >
+                {item.status}
+              </Text>
+            </View>
+          </View>
+        )}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* 💬 Floating Chat */}
+      <TouchableOpacity style={styles.chatButton} onPress={() => router.push("/meeting/smartsearch")}>
+        <Ionicons name="chatbubbles-outline" size={26} color="#FFF" />
+      </TouchableOpacity>
+
+      {/* 🎞 Recording Modal */}
+      <Modal transparent visible={showRecordModal} animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.modalContent, { transform: [{ translateY: slideAnim }] }]}>
+            <Text style={styles.modalTitle}>Recording in Progress 🎙️</Text>
+
+            <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.controlButton, styles.pauseButton]}
+                onPress={handlePauseToggle}
+              >
+                <Ionicons
+                  name={isPaused ? "play-outline" : "pause-outline"}
+                  size={32}
+                  color="#FFF"
+                />
+                <Text style={styles.controlLabel}>{isPaused ? "Resume" : "Pause"}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.controlButton, styles.stopButton]}
+                onPress={handleStopRecording}
+              >
+                <Ionicons name="stop-outline" size={32} color="#FFF" />
+                <Text style={styles.controlLabel}>Stop</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowRecordModal(false)}
+            >
+              <Ionicons name="close" size={26} color="#FFF" />
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+};
+
+export default HomeScreen;
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: { flex: 1, backgroundColor: "#FFF" },
+  headerGradient: {
+    paddingBottom: 24,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  headerTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 35,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  headerTitle: {
+    color: "#FFF",
+    fontSize: 22,
+    fontWeight: "700",
   },
+  profileIcon: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  greetingContainer: { paddingHorizontal: 50, marginTop: 20 },
+  greetingText: { color: "#FFF", fontSize: 20, fontWeight: "600" },
+  subGreeting: { color: "#E0E7FF", marginTop: 4 },
+  micContainer: { alignItems: "center", marginTop: 30 },
+  micButton: {
+    backgroundColor: "#ffffffff",
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  tapText: { color: "#E0E7FF", marginTop: 10, fontSize: 13 },
+  cardRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginHorizontal: 16,
+    marginTop: 20,
+  },
+  card: {
+    width: 150,
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    marginRight: 12,
+    elevation: 3,
+    alignItems: "center",
+  },
+  cardTitle: {
+    textAlign: "center",
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    marginTop: 6,
+  },
+  cardSubtitle: { fontSize: 12, color: "#6B7280", marginTop: 2 },
+  sectionHeader: { paddingHorizontal: 16, marginTop: 10, marginBottom: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: "600", color: "#111827" },
+  listItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    marginHorizontal: 16,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  listLeft: { flex: 1 },
+  listTitle: { fontSize: 16, fontWeight: "600", color: "#111827" },
+  listSubtitle: { fontSize: 13, color: "#6B7280" },
+  statusBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10 },
+  statusText: { fontSize: 13, fontWeight: "600" },
+  chatButton: {
+    backgroundColor: "#6D28D9",
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "absolute",
+    bottom: 40,
+    right: 22,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    alignItems: "center",
+  },
+  modalTitle: { fontSize: 18, fontWeight: "600", color: "#111827", marginBottom: 10 },
+  timerText: { fontSize: 26, fontWeight: "700", color: "#6D28D9", marginBottom: 20 },
+  buttonRow: { flexDirection: "row", justifyContent: "space-evenly", width: "100%" },
+  controlButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    width: "40%",
+    borderRadius: 12,
+  },
+  pauseButton: { backgroundColor: "#2196F3" },
+  stopButton: { backgroundColor: "#DC2626" },
+  controlLabel: { color: "#FFF", marginTop: 4, fontSize: 14, fontWeight: "600" },
+  closeButton: { marginTop: 16, backgroundColor: "#6D28D9", padding: 10, borderRadius: 30 },
 });

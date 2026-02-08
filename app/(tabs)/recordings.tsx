@@ -115,13 +115,6 @@ export default function RecordingsScreen() {
       style={styles.container}
     >
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-        <Ionicons name="arrow-back" size={24} color="#4F46E5" />
-        </TouchableOpacity>
-
         <View style={styles.titleContainer}>
           <Text style={styles.title}>📼 My Recordings</Text>
           <Text style={styles.subtitle}>{recordings.length} saved recording{recordings.length !== 1 ? 's' : ''}</Text>
@@ -220,7 +213,7 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 24,
-    },
+  },
   textSection: {
     flex: 1,
   },

@@ -57,7 +57,7 @@ const TranscriptionScreen = () => {
           </TouchableOpacity>
           <Text style={styles.topBarTitle}>Transcription</Text>
           <TouchableOpacity style={styles.moreButton}>
-           
+
           </TouchableOpacity>
         </View>
 
@@ -108,7 +108,7 @@ const TranscriptionScreen = () => {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/meeting/summary")}
+            onPress={() => router.push("/(tabs)/summary")}
           >
             <LinearGradient colors={["#8B5CF6", "#7C3AED"]} style={styles.actionGradient}>
               <Ionicons name="document-text-outline" size={20} color="#FFF" />
@@ -252,6 +252,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
   },
   transcriptHeaderText: { fontSize: 16, fontWeight: "700", color: "#1F2937" },
+  transcriptScroll: { flex: 1, marginTop: 10 },
   transcriptText: { fontSize: 15, lineHeight: 24, color: "#374151" },
 
   /* 🔹 Actions */
@@ -336,6 +337,7 @@ const styles = StyleSheet.create({
   profileText: { color: "#FFF", fontWeight: "700", fontSize: 18 },
   profileName: { color: "#FFF", fontWeight: "700", fontSize: 16 },
   profileSubtitle: { color: "#E5E7EB", fontSize: 12 },
+  closeButton: { padding: 5 },
 
   sidebarContent: { paddingHorizontal: 20, paddingTop: 10 },
   sidebarSectionTitle: {

@@ -11,12 +11,12 @@ export default function SignupScreen() {
   const [role, setRole] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const validateEmail = (email) => {
+  const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-  const validatePassword = (password) => {
+  const validatePassword = (password: string) => {
     // Minimum 8 characters, at least one uppercase, one lowercase, one number, and one special character
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[A-Za-z\d!@#$%^&*(),.?":{}|<>]{8,}$/;
     return passwordRegex.test(password);
@@ -70,7 +70,7 @@ export default function SignupScreen() {
       if (result.success) {
         showToast("success", "Success 🎉", `Account created as ${role}!`, 2500);
         setTimeout(() => {
-          router.replace("/user/home");
+          router.replace("/(tabs)");
         }, 2600);
       } else {
         showToast("error", "Signup Failed", result.error || "Please try again.");
@@ -136,8 +136,8 @@ export default function SignupScreen() {
         ))}
       </View>
 
-      <TouchableOpacity 
-        style={[styles.button, loading && styles.buttonDisabled]} 
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleSignup}
         disabled={loading}
       >
@@ -157,7 +157,7 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", justifyContent: "center", padding: 24 },
-  title: { fontSize: 28, textAlign: "center", color:"#1E3A8A", marginBottom: 10 },
+  title: { fontSize: 28, textAlign: "center", color: "#1E3A8A", marginBottom: 10 },
   subtitle: { textAlign: "center", color: "#6B7280", marginBottom: 40 },
   input: {
     borderWidth: 1,
