@@ -296,7 +296,7 @@ const BotpressChatBot: React.FC<BotpressChatBotProps> = ({
     >
       <View style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#4A90E2" />
-        
+
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -312,7 +312,7 @@ const BotpressChatBot: React.FC<BotpressChatBotProps> = ({
         {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.retryButton}
               onPress={() => {
                 setError(null);
@@ -370,10 +370,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#4A90E2',
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    boxShadow: '0px 2px 3.84px rgba(0, 0, 0, 0.25)',
     paddingTop: Platform.OS === 'ios' ? 50 : (StatusBar.currentHeight || 0) + 12,
   },
   headerLeft: {

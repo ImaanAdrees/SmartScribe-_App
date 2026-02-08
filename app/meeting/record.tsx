@@ -82,7 +82,7 @@ const HomeScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.controlButton}
-              onPress={() => router.push("/meeting/transcption")}
+              onPress={() => router.push("/(tabs)/transcription")}
             >
               <Ionicons name="document-text-outline" size={28} color="#FFF" />
               <Text style={styles.controlLabel}>Transcript</Text>
@@ -112,7 +112,7 @@ const HomeScreen: React.FC = () => {
           <Text style={styles.cardTitle}>Meetings</Text>
           <Text style={styles.cardSubtitle}>View & edit</Text>
         </TouchableOpacity>
-        
+
       </View>
 
       {/* 📜 Recent Transcriptions */}
@@ -139,8 +139,8 @@ const HomeScreen: React.FC = () => {
                     item.status === "Summarized"
                       ? "#DCFCE7"
                       : item.status === "Transcribed"
-                      ? "#E0E7FF"
-                      : "#F3E8FF",
+                        ? "#E0E7FF"
+                        : "#F3E8FF",
                 },
               ]}
             >
@@ -152,8 +152,8 @@ const HomeScreen: React.FC = () => {
                       item.status === "Summarized"
                         ? "#16A34A"
                         : item.status === "Transcribed"
-                        ? "#4F46E5"
-                        : "#7E22CE",
+                          ? "#4F46E5"
+                          : "#7E22CE",
                   },
                 ]}
               >
@@ -234,10 +234,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#6D28D9",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
+    boxShadow: "0px 4px 6px rgba(0, 0, 0, 0.2)",
   },
   stopButton: {
     backgroundColor: "#DC2626",
@@ -265,10 +262,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     padding: 16,
     alignItems: "flex-start",
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
+    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.05)",
   },
   cardTitle: {
     fontSize: 14,
@@ -331,9 +325,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
+    boxShadow: "0px 4px 6px rgba(0, 0, 0, 0.25)",
   },
 });   

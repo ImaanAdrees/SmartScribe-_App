@@ -1,9 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import { useAudioPlayer } from 'expo-audio';
 import { onNewNotification } from '../utils/socket';
 import { showToast } from '../utils/ToastHelper';
-import { Audio } from 'expo-av';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
@@ -32,33 +29,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
+
+    // SDK 54+ Audio implementation
+    const player = useAudioPlayer(require('../assets/sounds/notification.wav'));
 
     const playNotificationSound = useCallback(async () => {
         try {
-            await Audio.setAudioModeAsync({
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: false,
-            });
-
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                require('../assets/sounds/notification.wav'),
-                { shouldPlay: true }
-            );
-            setSound(newSound);
-            await newSound.playAsync();
+            if (player) {
+                player.play();
+            }
         } catch (error: any) {
-            console.log('[NotificationContext] Sound play skipped (likely file missing or error):', error.message);
+            console.log('[NotificationContext] Sound play skipped:', error.message);
         }
-    }, []);
+    }, [player]);
 
     useEffect(() => {
-        return () => {
-            if (sound) {
-                sound.unloadAsync();
-            }
-        };
-    }, [sound]);
+        // useAudioPlayer cleans up itself usually when component unmounts
+    }, []);
 
     const fetchNotifications = useCallback(async () => {
         const token = await AsyncStorage.getItem('userToken');
