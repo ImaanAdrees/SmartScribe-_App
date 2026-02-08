@@ -4,7 +4,7 @@
     "slug": "smartscribe",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/playstore.png",
+    "icon": "./assets/images/mainlogo.png",
     "scheme": "smartscribe",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -23,7 +23,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.ico"
+      "favicon": "./assets/images/smarticon-32.png"
     },
     "plugins": [
       "expo-router",
