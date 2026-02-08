@@ -343,9 +343,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    boxShadow: "0px 0px 10px rgba(0, 0, 0, 0.2)",
   },
   tapText: { color: "#E0E7FF", marginTop: 10, fontSize: 13 },
   cardRow: {
@@ -398,9 +396,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 40,
     right: 22,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
+    boxShadow: "0px 0px 10px rgba(0, 0, 0, 0.2)",
   },
   modalOverlay: {
     flex: 1,

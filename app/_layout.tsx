@@ -96,7 +96,7 @@ export default function RootLayout() {
   if (isLoading) return <SplashScreen />;
 
   return (
-    <NotificationProvider>
+    <NotificationProvider isLoggedIn={isLoggedIn}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="auth" />
         <Stack.Screen name="(tabs)" />

@@ -270,10 +270,7 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     elevation: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    boxShadow: "0px 3px 8px rgba(0, 0, 0, 0.2)",
   },
   chatGradient: {
     flex: 1,

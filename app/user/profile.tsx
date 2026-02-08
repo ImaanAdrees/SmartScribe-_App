@@ -11,14 +11,24 @@ import {
   Linking,
   Pressable,
   ActivityIndicator,
+  Platform,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "../../utils/api";
+import API_URL from "../../utils/api";
 import { showToast } from "../../utils/ToastHelper";
 import { disconnectSocket } from "../../utils/socket";
+
+// Helper to construct full image URL
+const getImageUrl = (imagePath: string | null) => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http')) return imagePath;
+  return `${API_URL}${imagePath}`;
+};
 
 const ProfileScreen = () => {
   const router = useRouter();
@@ -40,7 +50,7 @@ const ProfileScreen = () => {
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:5000";
   // Load user data on mount and when screen comes into focus
   useEffect(() => {
     const loadUserData = async () => {
@@ -52,6 +62,10 @@ const ProfileScreen = () => {
           setUserEmail(parsedData.email || "");
           setUserRole(parsedData.role || "Student");
           setTempName(parsedData.name || "Guest");
+
+          if (parsedData.image) {
+            setProfileImage(parsedData.image);
+          }
         }
       } catch (error) {
         console.error("Error loading user data:", error);
@@ -73,6 +87,10 @@ const ProfileScreen = () => {
             setUserEmail(parsedData.email || "");
             setUserRole(parsedData.role || "Student");
             setTempName(parsedData.name || "Guest");
+
+            if (parsedData.image) {
+              setProfileImage(parsedData.image);
+            }
           }
         } catch (error) {
           console.error("Error loading user data:", error);
@@ -188,12 +206,101 @@ const ProfileScreen = () => {
   };
   // -------------------------------------------------
 
-  const selectImageOption = (option: any) => {
+  const selectImageOption = async (option: "camera" | "gallery") => {
     setShowImageModal(false);
-    // In a real app, you'd integrate an image picker here:
-    // if (option === "camera") { ... take photo logic ... }
-    // if (option === "gallery") { ... choose photo logic ... }
-    console.log("Selected:", option);
+
+    try {
+      let result;
+      if (option === "camera") {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission Required", "Camera access is needed to take a photo.");
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission Required", "Media library access is needed to pick an image.");
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets[0].uri) {
+        await uploadProfilePicture(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Image Picker Error:", error);
+      showToast("error", "Error", "Failed to pick image");
+    }
+  };
+
+  const uploadProfilePicture = async (uri: string) => {
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const formData = new FormData();
+
+      // Get filename and extension
+      const filename = uri.split("/").pop() || "profile.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      // Create file object for FormData
+      if (Platform.OS === "web") {
+        const fetchResponse = await fetch(uri);
+        const blob = await fetchResponse.blob();
+        formData.append("image", blob, filename);
+      } else {
+        formData.append("image", {
+          uri,
+          name: filename,
+          type,
+        } as any);
+      }
+
+      const response = await fetch(`${API_URL}/api/users/profile/image`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+          // Content-Type is set automatically by FormData
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setProfileImage(data.image);
+
+        // Update local storage
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          parsed.image = data.image;
+          await AsyncStorage.setItem("userData", JSON.stringify(parsed));
+        }
+
+        showToast("success", "Success", "Profile picture updated!");
+      } else {
+        throw new Error(data.message || "Failed to upload image");
+      }
+    } catch (error: any) {
+      console.error("Upload Error:", error);
+      showToast("error", "Upload Failed", error.message || "Please try again");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -222,7 +329,7 @@ const ProfileScreen = () => {
             {/* Avatar */}
             <View style={styles.avatarContainer}>
               {profileImage ? (
-                <Image source={{ uri: profileImage }} style={styles.avatar} />
+                <Image source={{ uri: getImageUrl(profileImage) }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>

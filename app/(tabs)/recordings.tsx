@@ -150,10 +150,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 15,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
   },
   titleContainer: {
     alignItems: 'center',
@@ -179,10 +176,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.3)",
   },
   cardGradient: {
     borderRadius: 16,

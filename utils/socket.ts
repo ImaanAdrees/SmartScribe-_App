@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const SOCKET_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 let socket: any = null;
+let notificationListeners: Set<(notification: any) => void> = new Set();
 
 /**
  * Initialize and return the socket connection
@@ -33,6 +34,20 @@ export const initializeSocket = async () => {
 
   socket.on("error", (error: any) => {
     console.error("[Socket] Error:", error);
+  });
+
+  // Register the centralized listener for new_notification events
+  socket.on("new_notification", (data: any) => {
+    console.log('[Socket] 📢 new_notification event received:', data);
+    // Broadcast to all registered listeners
+    notificationListeners.forEach(callback => {
+      try {
+        console.log('[Socket] Calling listener callback');
+        callback(data);
+      } catch (error: any) {
+        console.error('[Socket] Error in notification callback:', error);
+      }
+    });
   });
 
   return socket;
@@ -71,25 +86,24 @@ export const joinNotificationRoom = async (userId: string) => {
  * @param {function} callback - Callback function to handle new notifications
  */
 export const onNewNotification = async (callback: (notification: any) => void) => {
-  console.log('[Socket] Registering new_notification listener...');
+  console.log('[Socket] Registering notification callback...');
+  
+  // Add callback to the listeners set
+  notificationListeners.add(callback);
+  console.log('[Socket] Callback registered. Total listeners:', notificationListeners.size);
+
+  // Ensure socket is initialized
   const socketInstance = await getSocket();
   
-  if (socketInstance && socketInstance.on) {
-    socketInstance.on("new_notification", (data: any) => {
-      console.log('[Socket] ✅ Received new_notification event:', data);
-      callback(data);
-    });
-    console.log('[Socket] Listener registered successfully');
-  } else {
-    console.error('[Socket] Socket instance not available');
+  if (!socketInstance) {
+    console.error('[Socket] Failed to initialize socket');
   }
 
   // Return unsubscribe function
   return () => {
-    console.log('[Socket] Unregistering new_notification listener');
-    if (socketInstance && socketInstance.off) {
-      socketInstance.off("new_notification");
-    }
+    console.log('[Socket] Unregistering notification callback');
+    notificationListeners.delete(callback);
+    console.log('[Socket] Callback unregistered. Remaining listeners:', notificationListeners.size);
   };
 };
 
@@ -98,7 +112,10 @@ export const onNewNotification = async (callback: (notification: any) => void) =
  */
 export const disconnectSocket = () => {
   if (socket) {
+    console.log('[Socket] Disconnecting socket...');
     socket.disconnect();
     socket = null;
+    notificationListeners.clear();
+    console.log('[Socket] Socket disconnected and listeners cleared');
   }
 };

@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications } from '../../context/NotificationContext';
+import { showToast } from '../../utils/ToastHelper';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const { notifications, isLoading, markAsRead, deleteNotification, fetchNotifications } = useNotifications();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
 
   // Refresh notifications on screen focus
   useEffect(() => {
@@ -35,14 +38,22 @@ export default function NotificationsScreen() {
   };
 
   const handleDelete = (item: any) => {
-    Alert.alert('Delete', `Delete "${item.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => deleteNotification(item.id),
-      },
-    ]);
+    setItemToDelete(item);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (itemToDelete) {
+      console.log('[NotificationScreen] Deleting notification:', itemToDelete.id);
+      await deleteNotification(itemToDelete.id);
+      setShowDeleteModal(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setItemToDelete(null);
   };
 
   const renderItem = ({ item }: { item: any }) => {
@@ -73,8 +84,7 @@ export default function NotificationsScreen() {
     };
 
     return (
-      <TouchableOpacity
-        onPress={() => markAsRead(item.id)}
+      <View
         style={[
           styles.item,
           {
@@ -84,23 +94,39 @@ export default function NotificationsScreen() {
           }
         ]}
       >
-        <Ionicons name={getTypeIcon(item.type)} size={24} color={getTypeColor(item.type)} style={{ marginRight: 12 }} />
-        <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Text style={[styles.title, { flex: 1 }]}>{item.title}</Text>
-            {!item.isRead && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadText}>New</Text>
+        <TouchableOpacity
+          style={styles.itemContent}
+          onPress={() => markAsRead(item.id)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name={getTypeIcon(item.type)} size={24} color={getTypeColor(item.type)} style={{ marginRight: 12 }} />
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={[styles.title, { flex: 1 }]}>{item.title}</Text>
+              {!item.isRead && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadText}>New</Text>
+                </View>
+              )}
+            </View>
+            {item.tag && (
+              <View style={styles.tagBadge}>
+                <Text style={styles.tagText}>{item.tag}</Text>
               </View>
             )}
+            <Text style={styles.message}>{item.message}</Text>
+            <Text style={styles.time}>{formatTime(item.receivedAt)}</Text>
           </View>
-          <Text style={styles.message}>{item.message}</Text>
-          <Text style={styles.time}>{formatTime(item.receivedAt)}</Text>
-        </View>
-        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.deleteBtn}
+          onPress={() => handleDelete(item)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <Ionicons name="close" size={20} color="#E53935" />
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -134,6 +160,44 @@ export default function NotificationsScreen() {
           contentContainerStyle={{ paddingBottom: 24 }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showDeleteModal}
+        onRequestClose={cancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="trash-outline" size={28} color="#EF4444" />
+              </View>
+              <Text style={styles.modalTitle}>Delete Notification</Text>
+            </View>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete "{itemToDelete?.title}"? This action cannot be undone.
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={cancelDelete}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={confirmDelete}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -155,13 +219,18 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   item: {
     flexDirection: 'row',
-    padding: 16,
     borderRadius: 12,
     backgroundColor: '#f8f9fa',
     marginBottom: 12,
-    alignItems: 'flex-start',
-    elevation: 1,
+    alignItems: 'center',
+    elevation: 2,
     boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
+  },
+  itemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    padding: 16,
+    alignItems: 'flex-start',
   },
   title: { fontSize: 16, fontWeight: '600', marginBottom: 4, color: '#1a1a1a' },
   message: { fontSize: 14, color: '#555', marginBottom: 6, lineHeight: 20 },
@@ -178,5 +247,89 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: '600',
+  },
+  tagBadge: {
+    backgroundColor: '#E8F4FD',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  tagText: {
+    color: '#0288D1',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    width: '85%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.15)",
+    elevation: 5,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  iconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#4B5563',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

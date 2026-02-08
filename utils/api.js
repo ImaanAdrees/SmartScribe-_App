@@ -165,6 +165,27 @@ export const authAPI = {
       return { success: false, error: error.message };
     }
   },
+
+  updateProfile: async (profileData) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(profileData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update profile');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
 };
 
 // User APIs
@@ -190,26 +211,5 @@ export const userAPI = {
   },
 };
 
-// Auth API extensions for profile update
-authAPI.updateProfile = async (profileData) => {
-  try {
-    const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/api/users/profile`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(profileData),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to update profile');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
 
 export default API_URL;
