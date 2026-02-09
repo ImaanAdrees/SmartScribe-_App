@@ -4,12 +4,14 @@ import SplashScreen from "./SplashScreen";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "../utils/api";
-import { initializeSocket, joinNotificationRoom, disconnectSocket } from "../utils/socket";
+import API_URL from "../utils/api";
+import { initializeSocket, joinNotificationRoom, disconnectSocket, socket } from "../utils/socket";
 import { NotificationProvider } from "../context/NotificationContext";
 
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isMaintenance, setIsMaintenance] = useState(false);
   const router = useRouter();
   const segments = useSegments();
 
@@ -40,13 +42,62 @@ export default function RootLayout() {
     };
   }, []);
 
+  // Check Maintenance Status
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/maintenance/check-maintenance`);
+        const data = await response.json();
+        setIsMaintenance(!!data.maintenanceMode);
+      } catch (error) {
+        console.error("Error checking maintenance status:", error);
+      }
+    };
+
+    checkMaintenance();
+    const interval = setInterval(checkMaintenance, 10000); // Check every 10 seconds for faster response
+
+    // Socket Listener for Real-time Updates
+    const handleMaintenanceUpdate = (data: any) => {
+      console.log("[RootLayout] Real-time maintenance update:", data);
+      setIsMaintenance(!!data.maintenanceMode);
+    };
+
+    if (socket) {
+      socket.on("maintenance_mode_changed", handleMaintenanceUpdate);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (socket) {
+        socket.off("maintenance_mode_changed", handleMaintenanceUpdate);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === "auth";
     const inProtectedGroup = segments[0] === "(tabs)" || segments[0] === "user" || segments[0] === "meeting";
 
-    console.log("[RootLayout] Auth Sync - Path:", segments.join("/"), "| isLoggedIn:", isLoggedIn);
+    console.log("[RootLayout] Auth Sync - Path:", segments.join("/"), "| isLoggedIn:", isLoggedIn, "| isMaintenance:", isMaintenance);
+
+    // Maintenance Redirection Logic
+    const inMaintenance = segments[0] === "maintenance-screen";
+
+    if (isMaintenance) {
+      if (!inMaintenance) {
+        console.log("[RootLayout] System in maintenance, redirecting to maintenance screen");
+        router.replace("/maintenance-screen");
+      }
+      return; // Stop further checks if in maintenance
+    } else if (inMaintenance) {
+      // If maintenance is OFF but we are on the screen, redirect back
+      console.log("[RootLayout] Maintenance ended, redirecting back");
+      router.replace(isLoggedIn ? "/(tabs)" : "/auth/login");
+      return;
+    }
 
     if (!isLoggedIn && inProtectedGroup) {
       console.log("[RootLayout] Unauthorized access attempt, redirecting to /auth/login");
@@ -55,7 +106,7 @@ export default function RootLayout() {
       console.log("[RootLayout] Logged in user in auth screen, redirecting to /(tabs)");
       router.replace("/(tabs)");
     }
-  }, [isLoading, isLoggedIn, segments]);
+  }, [isLoading, isLoggedIn, segments, isMaintenance]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -102,6 +153,7 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="user" />
         <Stack.Screen name="meeting" />
+        <Stack.Screen name="maintenance-screen" options={{ gestureEnabled: false }} />
       </Stack>
       <Toast />
     </NotificationProvider>
