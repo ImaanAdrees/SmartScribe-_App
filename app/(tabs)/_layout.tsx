@@ -65,6 +65,13 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="meeting"
+        options={{
+          href: null,
+          headerShown: true,
+        }}
+      />
     </Tabs>
   );
 }

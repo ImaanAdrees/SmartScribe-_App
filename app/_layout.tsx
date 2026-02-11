@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Dimensions, Platform } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import SplashScreen from "./SplashScreen";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "../utils/api";
 import API_URL from "../utils/api";
-import { initializeSocket, joinNotificationRoom, disconnectSocket, socket } from "../utils/socket";
+import { initializeSocket, joinNotificationRoom, disconnectSocket, getSocket } from "../utils/socket";
 import { NotificationProvider } from "../context/NotificationContext";
 
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMaintenance, setIsMaintenance] = useState(false);
+  const [maintenanceCountdown, setMaintenanceCountdown] = useState<number | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
@@ -44,36 +46,80 @@ export default function RootLayout() {
 
   // Check Maintenance Status
   useEffect(() => {
+    // Check Maintenance Status
+    // Check Maintenance Status
     const checkMaintenance = async () => {
       try {
         const response = await fetch(`${API_URL}/api/maintenance/check-maintenance`);
         const data = await response.json();
+        // Backend now delays setting true, so we can trust this value
         setIsMaintenance(!!data.maintenanceMode);
       } catch (error) {
         console.error("Error checking maintenance status:", error);
       }
     };
 
-    checkMaintenance();
-    const interval = setInterval(checkMaintenance, 10000); // Check every 10 seconds for faster response
+    const interval = setInterval(checkMaintenance, 10000); // Check every 10 seconds
 
     // Socket Listener for Real-time Updates
-    const handleMaintenanceUpdate = (data: any) => {
-      console.log("[RootLayout] Real-time maintenance update:", data);
-      setIsMaintenance(!!data.maintenanceMode);
+    const handleMaintenanceWarning = (data: any) => {
+      console.log("[RootLayout] Maintenance Warning Received:", data);
+      setMaintenanceCountdown(data.duration || 30);
     };
 
-    if (socket) {
-      socket.on("maintenance_mode_changed", handleMaintenanceUpdate);
-    }
+    const handleMaintenanceUpdate = (data: any) => {
+      console.log("[RootLayout] Real-time maintenance update:", data);
+
+      if (data.maintenanceMode) {
+        // Maintenance confirmed ON (after delay)
+        setIsMaintenance(true);
+        setMaintenanceCountdown(null);
+      } else {
+        // Maintenance OFF
+        setIsMaintenance(false);
+        setMaintenanceCountdown(null);
+      }
+    };
+
+    const setupSocketListeners = async () => {
+      const socket = await getSocket();
+      if (socket) {
+        console.log("[RootLayout] Attaching maintenance listeners to socket:", socket.id);
+        socket.on("maintenance_warning", handleMaintenanceWarning);
+        socket.on("maintenance_mode_changed", handleMaintenanceUpdate);
+        socket.on("maintenance_warning_cleared", () => setMaintenanceCountdown(null));
+      }
+    };
+
+    setupSocketListeners();
 
     return () => {
       clearInterval(interval);
-      if (socket) {
-        socket.off("maintenance_mode_changed", handleMaintenanceUpdate);
-      }
+      getSocket().then(socket => {
+        if (socket) {
+          socket.off("maintenance_warning", handleMaintenanceWarning);
+          socket.off("maintenance_mode_changed", handleMaintenanceUpdate);
+          socket.off("maintenance_warning_cleared");
+        }
+      });
     };
   }, []);
+
+  // Countdown Timer Effect
+  useEffect(() => {
+    if (maintenanceCountdown === null) return;
+
+    if (maintenanceCountdown > 0) {
+      const timer = setTimeout(() => {
+        setMaintenanceCountdown(prev => (prev !== null ? prev - 1 : null));
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (maintenanceCountdown === 0) {
+      // Countdown finished, activate maintenance mode
+      setIsMaintenance(true);
+      setMaintenanceCountdown(null);
+    }
+  }, [maintenanceCountdown]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -156,6 +202,62 @@ export default function RootLayout() {
         <Stack.Screen name="maintenance-screen" options={{ gestureEnabled: false }} />
       </Stack>
       <Toast />
+
+      {/* Maintenance Warning Overlay */}
+      {maintenanceCountdown !== null && maintenanceCountdown > 0 && (
+        <View style={styles.overlay}>
+          <View style={styles.warningBox}>
+            <Text style={styles.warningTitle}>System Maintenance</Text>
+            <Text style={styles.warningText}>
+              Maintenance mode will be enabled in:
+            </Text>
+            <Text style={styles.countdownText}>{maintenanceCountdown}s</Text>
+            <Text style={styles.subText}>Please save your work.</Text>
+          </View>
+        </View>
+      )}
     </NotificationProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    bottom: 120,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    borderRadius: 12,
+    padding: 16,
+    zIndex: 9999,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  warningBox: {
+    alignItems: 'center',
+  },
+  warningTitle: {
+    color: '#ffdd00',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  warningText: {
+    color: '#ffffff',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  countdownText: {
+    color: '#ff4444',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginVertical: 4,
+  },
+  subText: {
+    color: '#cccccc',
+    fontSize: 12,
+  },
+});

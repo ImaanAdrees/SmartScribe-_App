@@ -55,29 +55,6 @@ const ExportScreen = () => {
 
   return (
     <LinearGradient colors={["#EEF2FF", "#F9FAFB"]} style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#4F46E5" />
-        </TouchableOpacity>
-
-        <LinearGradient
-          colors={["#6366F1", "#8B5CF6"]}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <Text style={styles.headerIcon}>📤</Text>
-            <View>
-              <Text style={styles.headerTitle}>Export Transcriptions</Text>
-              <Text style={styles.headerSubtitle}>Choose format and options</Text>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
-
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}

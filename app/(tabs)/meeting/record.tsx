@@ -45,15 +45,6 @@ const HomeScreen: React.FC = () => {
         colors={["#4F46E5", "#1E3A8A"]}
         style={styles.headerGradient}
       >
-        {/* Header Top Row */}
-        <View style={styles.headerTop}>
-          <View style={{ width: 40 }} />
-          <Text style={styles.headerTitle}>SmartScribe</Text>
-          <TouchableOpacity style={styles.profileIcon}>
-            <Ionicons name="person-circle-outline" size={42} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-
         {/* Greeting Section */}
         <View style={styles.greetingContainer}>
           <Text style={styles.greetingText}>Good Afternoon, Imaan 👋</Text>
