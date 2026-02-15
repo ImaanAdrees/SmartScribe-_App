@@ -143,13 +143,13 @@ const HomeScreen: React.FC = () => {
   // 🟥 Stop Recording
   const handleStopRecording = () => {
     stopTimer();
-    
+
     // Log recording completion with duration
     logRecordingCompleted({ duration: formatTime(elapsedTime) });
-    
+
     // Log transcription creation
     logTranscriptionCreated({ recordingDuration: formatTime(elapsedTime) });
-    
+
     setShowRecordModal(false);
     router.push({
       pathname: "/(tabs)/transcription",

@@ -39,7 +39,7 @@ export default function LoginScreen() {
       if (result.success) {
         // Log login activity
         await logLogin();
-        
+
         showToast("success", "Login Successful 🎉", "Welcome back!", 1500);
         // Socket connection and redirection are now handled centrally 
         // by RootLayout reacting to the auth status change.

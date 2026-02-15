@@ -47,7 +47,7 @@ export default function ToastTestScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Basic Toasts</Text>
-          
+
           <TouchableOpacity style={[styles.button, styles.successButton]} onPress={handleSuccessToast}>
             <Text style={styles.buttonText}>Show Success Toast</Text>
           </TouchableOpacity>
@@ -67,7 +67,7 @@ export default function ToastTestScreen() {
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Auth Flow Examples</Text>
-          
+
           <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={handleLoginFlow}>
             <Text style={styles.buttonText}>Simulate Login</Text>
           </TouchableOpacity>

@@ -9,8 +9,8 @@ const AIChatScreen = () => {
   const params = useLocalSearchParams();
   const [chatVisible, setChatVisible] = useState<boolean>(true);
 
-  const transcriptText = typeof params.transcriptText === 'string' 
-    ? params.transcriptText 
+  const transcriptText = typeof params.transcriptText === 'string'
+    ? params.transcriptText
     : undefined;
 
   return (

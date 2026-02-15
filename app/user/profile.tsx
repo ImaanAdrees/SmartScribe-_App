@@ -121,10 +121,10 @@ const ProfileScreen = () => {
             role: userRole,
           })
         );
-        
+
         // Log profile update activity
         await logProfileUpdated({ field: "name", newValue: tempName });
-        
+
         showToast("success", "Success", "Profile name updated!");
         setShowEditModal(false);
       } else {
@@ -193,7 +193,7 @@ const ProfileScreen = () => {
     try {
       // Log logout activity
       await logLogout();
-      
+
       // Disconnect socket connection
       disconnectSocket();
 
@@ -314,10 +314,10 @@ const ProfileScreen = () => {
   const removeProfilePicture = async () => {
     setShowImageModal(false);
     setLoading(true);
-    
+
     try {
       const token = await AsyncStorage.getItem("userToken");
-      
+
       const response = await fetch(`${API_URL}/api/users/profile/image`, {
         method: "DELETE",
         headers: {
