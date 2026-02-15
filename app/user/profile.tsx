@@ -11,13 +11,25 @@ import {
   Linking,
   Pressable,
   ActivityIndicator,
+  Platform,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "../../utils/api";
+import API_URL from "../../utils/api";
 import { showToast } from "../../utils/ToastHelper";
+import { disconnectSocket } from "../../utils/socket";
+import { logProfileUpdated, logLogout } from "../../utils/activityLogger";
+
+// Helper to construct full image URL
+const getImageUrl = (imagePath: string | null) => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith('http')) return imagePath;
+  return `${API_URL}${imagePath}`;
+};
 
 const ProfileScreen = () => {
   const router = useRouter();
@@ -30,6 +42,7 @@ const ProfileScreen = () => {
   const [tempName, setTempName] = useState("");
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Password change states
   const [oldPassword, setOldPassword] = useState("");
@@ -38,7 +51,7 @@ const ProfileScreen = () => {
   const [showOldPassword, setShowOldPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
+  const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:5000";
   // Load user data on mount and when screen comes into focus
   useEffect(() => {
     const loadUserData = async () => {
@@ -50,6 +63,10 @@ const ProfileScreen = () => {
           setUserEmail(parsedData.email || "");
           setUserRole(parsedData.role || "Student");
           setTempName(parsedData.name || "Guest");
+
+          if (parsedData.image) {
+            setProfileImage(parsedData.image);
+          }
         }
       } catch (error) {
         console.error("Error loading user data:", error);
@@ -71,6 +88,10 @@ const ProfileScreen = () => {
             setUserEmail(parsedData.email || "");
             setUserRole(parsedData.role || "Student");
             setTempName(parsedData.name || "Guest");
+
+            if (parsedData.image) {
+              setProfileImage(parsedData.image);
+            }
           }
         } catch (error) {
           console.error("Error loading user data:", error);
@@ -100,6 +121,10 @@ const ProfileScreen = () => {
             role: userRole,
           })
         );
+
+        // Log profile update activity
+        await logProfileUpdated({ field: "name", newValue: tempName });
+
         showToast("success", "Success", "Profile name updated!");
         setShowEditModal(false);
       } else {
@@ -156,43 +181,174 @@ const ProfileScreen = () => {
     }
   }
 
-  // --- Logout handler with proper token cleanup ---
+  // --- Logout handlers ---
   const handleLogout = () => {
-    console.log("handleLogout function called!");
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            console.log("Logout confirmed - clearing data");
-            // Clear all stored data using authAPI
-            const result = await authAPI.logout();
-            if (result.success) {
-              showToast("success", "Logged out", "See you soon!", 1500);
-              setTimeout(() => {
-                router.replace("/auth/login");
-              }, 1600);
-            } else {
-              showToast("error", "Logout Failed", "Please try again");
-            }
-          },
-        },
-      ],
-      { cancelable: false }
-    );
+    console.log("[Profile] Opening Logout Confirmation Modal");
+    setShowLogoutModal(true);
+  };
+
+  const confirmLogout = async () => {
+    console.log("[Profile] Logout confirmed - clearing data");
+    setShowLogoutModal(false);
+    try {
+      // Log logout activity
+      await logLogout();
+
+      // Disconnect socket connection
+      disconnectSocket();
+
+      // Clear all stored data using authAPI
+      const result = await authAPI.logout();
+      if (result.success) {
+        console.log("[Profile] Local data cleared, redirecting to /auth/login...");
+        showToast("success", "Logged out", "See you soon!", 1500);
+        router.replace("/auth/login");
+      } else {
+        console.warn("[Profile] Logout failed:", result.error);
+        showToast("error", "Logout Failed", "Please try again");
+      }
+    } catch (error) {
+      console.error("[Profile] Logout error:", error);
+      showToast("error", "Logout Error", "An unexpected error occurred.");
+    }
   };
   // -------------------------------------------------
 
-  const selectImageOption = (option) => {
+  const selectImageOption = async (option: "camera" | "gallery") => {
     setShowImageModal(false);
-    // In a real app, you'd integrate an image picker here:
-    // if (option === "camera") { ... take photo logic ... }
-    // if (option === "gallery") { ... choose photo logic ... }
-    console.log("Selected:", option);
+
+    try {
+      let result;
+      if (option === "camera") {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission Required", "Camera access is needed to take a photo.");
+          return;
+        }
+        result = await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      } else {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert("Permission Required", "Media library access is needed to pick an image.");
+          return;
+        }
+        result = await ImagePicker.launchImageLibraryAsync({
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.8,
+        });
+      }
+
+      if (!result.canceled && result.assets && result.assets[0].uri) {
+        await uploadProfilePicture(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Image Picker Error:", error);
+      showToast("error", "Error", "Failed to pick image");
+    }
+  };
+
+  const uploadProfilePicture = async (uri: string) => {
+    setLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      const formData = new FormData();
+
+      // Get filename and extension
+      const filename = uri.split("/").pop() || "profile.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      // Create file object for FormData
+      if (Platform.OS === "web") {
+        const fetchResponse = await fetch(uri);
+        const blob = await fetchResponse.blob();
+        formData.append("image", blob, filename);
+      } else {
+        formData.append("image", {
+          uri,
+          name: filename,
+          type,
+        } as any);
+      }
+
+      const response = await fetch(`${API_URL}/api/users/profile/image`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+          // Content-Type is set automatically by FormData
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setProfileImage(data.image);
+
+        // Update local storage
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          parsed.image = data.image;
+          await AsyncStorage.setItem("userData", JSON.stringify(parsed));
+        }
+
+        showToast("success", "Success", "Profile picture updated!");
+      } else {
+        throw new Error(data.message || "Failed to upload image");
+      }
+    } catch (error: any) {
+      console.error("Upload Error:", error);
+      showToast("error", "Upload Failed", error.message || "Please try again");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const removeProfilePicture = async () => {
+    setShowImageModal(false);
+    setLoading(true);
+
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+
+      const response = await fetch(`${API_URL}/api/users/profile/image`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setProfileImage(null);
+
+        // Update local storage
+        const userData = await AsyncStorage.getItem("userData");
+        if (userData) {
+          const parsed = JSON.parse(userData);
+          parsed.image = null;
+          await AsyncStorage.setItem("userData", JSON.stringify(parsed));
+        }
+
+        showToast("success", "Removed", "Profile picture removed");
+      } else {
+        throw new Error(data.message || "Failed to remove image");
+      }
+    } catch (error: any) {
+      console.error("Remove Error:", error);
+      showToast("error", "Remove Failed", error.message || "Please try again");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -221,7 +377,7 @@ const ProfileScreen = () => {
             {/* Avatar */}
             <View style={styles.avatarContainer}>
               {profileImage ? (
-                <Image source={{ uri: profileImage }} style={styles.avatar} />
+                <Image source={{ uri: getImageUrl(profileImage) }} style={styles.avatar} />
               ) : (
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -502,6 +658,41 @@ const ProfileScreen = () => {
         </View>
       </Modal>
 
+      {/* Logout Confirmation Modal */}
+      <Modal visible={showLogoutModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.logoutModalContent}>
+              <View style={styles.logoutIconContainer}>
+                <Ionicons name="log-out" size={40} color="#EF4444" />
+              </View>
+              <Text style={styles.logoutModalTitle}>Logout</Text>
+              <Text style={styles.logoutModalSubmessage}>
+                Are you sure you want to logout of SmartScribe?
+              </Text>
+            </View>
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable style={styles.logoutConfirmButton} onPress={confirmLogout}>
+                <LinearGradient
+                  colors={["#EF4444", "#DC2626"]}
+                  style={styles.saveGradient}
+                >
+                  <Text style={styles.saveButtonText}>Logout</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Image Selection Modal */}
       <Modal visible={showImageModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -531,21 +722,20 @@ const ProfileScreen = () => {
               </View>
               <Text style={styles.imageOptionText}>Choose from Gallery</Text>
             </Pressable>
-              <Pressable
-                style={styles.imageOption}
-                onPress={() => {
-                  setProfileImage(null);
-                  setShowImageModal(false);
-                }}
+            <Pressable
+              style={styles.imageOption}
+              onPress={removeProfilePicture}
+              disabled={loading || !profileImage}
+            >
+              <View
+                style={[styles.imageOptionIcon, { backgroundColor: "#FEE2E2", opacity: (!profileImage || loading) ? 0.5 : 1 }]}
               >
-                <View
-                  style={[styles.imageOptionIcon, { backgroundColor: "#FEE2E2" }]}
-                >
-                  <Ionicons name="trash" size={24} color="#EF4444" />
-                </View>
-                <Text style={styles.imageOptionText}>Remove Photo</Text>
-              </Pressable>
-            )}
+                <Ionicons name="trash" size={24} color="#EF4444" />
+              </View>
+              <Text style={[styles.imageOptionText, { opacity: (!profileImage || loading) ? 0.5 : 1 }]}>
+                {profileImage ? "Remove Photo" : "No Photo to Remove"}
+              </Text>
+            </Pressable>
 
             <Pressable
               style={styles.imageModalCancel}
@@ -580,10 +770,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
   },
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#1F2937" },
   placeholder: { width: 40 },
@@ -595,10 +782,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     elevation: 4,
-    shadowColor: "#6366F1",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 8px rgba(99, 102, 241, 0.3)",
   },
   profileGradient: { padding: 32, alignItems: "center" },
   avatarContainer: { position: "relative", marginBottom: 20 },
@@ -634,7 +818,7 @@ const styles = StyleSheet.create({
   roleContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12 },
   userRole: { fontSize: 15, color: "#E5E7EB", fontWeight: "500" },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
-  modalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24, width: "100%", elevation: 10, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+  modalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24, width: "100%", elevation: 10, boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: "700", color: "#1F2937" },
   input: { backgroundColor: "#F9FAFB", borderRadius: 12, padding: 16, fontSize: 16, color: "#1F2937", borderWidth: 1, borderColor: "#E5E7EB", marginBottom: 20 },
@@ -646,7 +830,40 @@ const styles = StyleSheet.create({
   saveButton: { flex: 1, borderRadius: 12, overflow: "hidden" },
   saveGradient: { paddingVertical: 14, alignItems: "center" },
   saveButtonText: { fontSize: 16, fontWeight: "700", color: "#FFFFFF" },
-  imageModalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24, width: "100%", elevation: 10, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 12, shadowOffset: { width: 0, height: 6 } },
+
+  // Logout Modal Styles
+  logoutModalContent: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  logoutIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FEE2E2",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  logoutModalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 8,
+  },
+  logoutModalSubmessage: {
+    fontSize: 16,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 10,
+  },
+  logoutConfirmButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  imageModalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24, width: "100%", elevation: 10, boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)" },
   imageModalTitle: { fontSize: 20, fontWeight: "700", color: "#1F2937", marginBottom: 20, textAlign: "center" },
   imageOption: { flexDirection: "row", alignItems: "center", backgroundColor: "#F9FAFB", padding: 16, borderRadius: 12, marginBottom: 12 },
   imageOptionIcon: { width: 48, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center", marginRight: 16 },

@@ -6,6 +6,7 @@ import { showToast } from "../../utils/ToastHelper";
 import { authAPI } from "../../utils/api";
 import { initializeSocket, joinNotificationRoom } from "../../utils/socket";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logLogin } from "../../utils/activityLogger";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -14,7 +15,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleLogin = async () => {
     if (!email.trim()) {
@@ -36,28 +37,12 @@ export default function LoginScreen() {
       const result = await authAPI.login(email, password);
 
       if (result.success) {
-        showToast("success", "Login Successful 🎉", "Welcome back!", 2500);
-        
-        // Get user ID from AsyncStorage
-        const userId = await AsyncStorage.getItem('userId');
-        
-        // Initialize socket connection after successful login
-        if (userId) {
-          try {
-            console.log('[Login] Initializing socket connection...');
-            await initializeSocket();
-            console.log('[Login] Socket initialized, joining notification room...');
-            await joinNotificationRoom(userId);
-            console.log('[Login] Socket connected and joined user room:', userId);
-          } catch (socketError) {
-            console.error('[Login] Error initializing socket:', socketError);
-            // Don't block login if socket fails, just log the error
-          }
-        }
-        
-        setTimeout(() => {
-          router.replace("/user/home");
-        }, 2600);
+        // Log login activity
+        await logLogin();
+
+        showToast("success", "Login Successful 🎉", "Welcome back!", 1500);
+        // Socket connection and redirection are now handled centrally 
+        // by RootLayout reacting to the auth status change.
       } else {
         showToast("error", "Login Failed", result.error || "Invalid credentials.");
       }
@@ -107,8 +92,8 @@ export default function LoginScreen() {
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.button, loading && styles.buttonDisabled]} 
+      <TouchableOpacity
+        style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleLogin}
         disabled={loading}
       >
@@ -192,10 +177,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginTop: 10,
-    shadowColor: "#4F46E5",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 8px rgba(79, 70, 229, 0.3)",
     elevation: 4,
   },
   buttonDisabled: {

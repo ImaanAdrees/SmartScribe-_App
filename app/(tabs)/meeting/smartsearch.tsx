@@ -29,7 +29,7 @@ const SmartSearchScreen = () => {
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
-  const scrollViewRef = useRef();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const suggestedQuestions = [
     "What was discussed about the UI?",
@@ -66,7 +66,7 @@ const SmartSearchScreen = () => {
     }, 1500);
   };
 
-  const handleSuggestionPress = (question) => {
+  const handleSuggestionPress = (question: string) => {
     setInputText(question);
   };
 
@@ -235,7 +235,7 @@ const SmartSearchScreen = () => {
             </TouchableOpacity>
           </View>
 
-       
+
         </View>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -262,19 +262,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 15,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
   },
   headerGradient: {
     borderRadius: 20,
     padding: 20,
     elevation: 4,
-    shadowColor: "#6366F1",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 8px rgba(99, 102, 241, 0.3)",
   },
   headerContent: {
     flexDirection: "row",
@@ -344,10 +338,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomLeftRadius: 4,
     elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
   },
   messageText: {
     fontSize: 15,
@@ -382,10 +373,7 @@ const styles = StyleSheet.create({
     padding: 12,
     paddingVertical: 16,
     elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
   },
   typingDots: {
     flexDirection: "row",

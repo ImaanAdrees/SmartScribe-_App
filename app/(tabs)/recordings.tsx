@@ -114,20 +114,6 @@ export default function RecordingsScreen() {
       colors={['#ffffffff', '#f9f9f9ff']}
       style={styles.container}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-        <Ionicons name="arrow-back" size={24} color="#4F46E5" />
-        </TouchableOpacity>
-
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>📼 My Recordings</Text>
-          <Text style={styles.subtitle}>{recordings.length} saved recording{recordings.length !== 1 ? 's' : ''}</Text>
-        </View>
-      </View>
-
       <FlatList
         data={recordings}
         keyExtractor={(item) => item.id}
@@ -149,7 +135,7 @@ export default function RecordingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 50,
+    paddingTop: 10,
   },
   header: {
     paddingHorizontal: 20,
@@ -164,10 +150,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 15,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
   },
   titleContainer: {
     alignItems: 'center',
@@ -193,10 +176,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.3)",
   },
   cardGradient: {
     borderRadius: 16,
@@ -220,7 +200,7 @@ const styles = StyleSheet.create({
   },
   iconText: {
     fontSize: 24,
-    },
+  },
   textSection: {
     flex: 1,
   },

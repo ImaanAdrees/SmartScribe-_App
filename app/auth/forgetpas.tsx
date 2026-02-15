@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -50,14 +50,14 @@ export default function ForgotPasswordScreen() {
             Please check your inbox and click on the link to reset your password.
           </Text>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={forgotStyles.button}
             onPress={() => router.push("/auth/login")}
           >
             <Text style={forgotStyles.buttonText}>Back to Login</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={forgotStyles.resendButton}
             onPress={() => setEmailSent(false)}
           >
@@ -70,7 +70,7 @@ export default function ForgotPasswordScreen() {
 
   return (
     <View style={forgotStyles.container}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={forgotStyles.backButton}
         onPress={() => router.back()}
       >
@@ -98,8 +98,8 @@ export default function ForgotPasswordScreen() {
         />
       </View>
 
-      <TouchableOpacity 
-        style={forgotStyles.button} 
+      <TouchableOpacity
+        style={forgotStyles.button}
         onPress={handleResetPassword}
       >
         <Text style={forgotStyles.buttonText}>Send Reset Link</Text>
@@ -116,11 +116,11 @@ export default function ForgotPasswordScreen() {
 }
 
 const forgotStyles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: "#fff", 
-    justifyContent: "center", 
-    padding: 24 
+  container: {
+    flex: 1,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    padding: 24
   },
   backButton: {
     position: "absolute",
@@ -137,16 +137,16 @@ const forgotStyles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  title: { 
+  title: {
     fontSize: 28,
     fontWeight: "700",
     textAlign: "center",
-    color: "#1E3A8A", 
-    marginBottom: 10 
+    color: "#1E3A8A",
+    marginBottom: 10
   },
-  subtitle: { 
-    textAlign: "center", 
-    color: "#6B7280", 
+  subtitle: {
+    textAlign: "center",
+    color: "#6B7280",
     marginBottom: 40,
     fontSize: 15,
     lineHeight: 22,
@@ -171,22 +171,19 @@ const forgotStyles = StyleSheet.create({
     fontSize: 16,
     color: "#111827",
   },
-  button: { 
-    backgroundColor: "#4F46E5", 
-    padding: 16, 
-    borderRadius: 12, 
+  button: {
+    backgroundColor: "#4F46E5",
+    padding: 16,
+    borderRadius: 12,
     marginTop: 10,
-    shadowColor: "#4F46E5",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 8px rgba(79, 70, 229, 0.3)",
     elevation: 4,
   },
-  buttonText: { 
-    color: "#fff", 
-    fontSize: 16, 
-    textAlign: "center", 
-    fontWeight: "700" 
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    textAlign: "center",
+    fontWeight: "700"
   },
   loginContainer: {
     flexDirection: "row",

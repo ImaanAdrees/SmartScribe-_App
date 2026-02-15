@@ -31,7 +31,7 @@ const ExportScreen = () => {
     { id: "meeting4", title: "UI Update", date: "Oct 15, 2025", duration: "45 min" },
   ];
 
-  const toggleMeetingSelection = (id) => {
+  const toggleMeetingSelection = (id: string) => {
     if (selectedMeetings.includes(id)) {
       setSelectedMeetings(selectedMeetings.filter((m) => m !== id));
     } else {
@@ -41,12 +41,12 @@ const ExportScreen = () => {
 
   const handleExport = () => {
     setIsExporting(true);
-    
+
     // Simulate export process
     setTimeout(() => {
       setIsExporting(false);
       setShowSuccess(true);
-      
+
       setTimeout(() => {
         setShowSuccess(false);
       }, 2500);
@@ -55,37 +55,14 @@ const ExportScreen = () => {
 
   return (
     <LinearGradient colors={["#EEF2FF", "#F9FAFB"]} style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#4F46E5" />
-        </TouchableOpacity>
-
-        <LinearGradient
-          colors={["#6366F1", "#8B5CF6"]}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <Text style={styles.headerIcon}>📤</Text>
-            <View>
-              <Text style={styles.headerTitle}>Export Transcriptions</Text>
-              <Text style={styles.headerSubtitle}>Choose format and options</Text>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
-
-      <ScrollView 
+      <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
       >
         {/* Format Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📄 Export Format</Text>
-          
+
           <View style={styles.formatContainer}>
             <TouchableOpacity
               style={[
@@ -95,10 +72,10 @@ const ExportScreen = () => {
               onPress={() => setSelectedFormat("pdf")}
             >
               <View style={styles.formatIconContainer}>
-                <Ionicons 
-                  name="document-text" 
-                  size={28} 
-                  color={selectedFormat === "pdf" ? "#6366F1" : "#6B7280"} 
+                <Ionicons
+                  name="document-text"
+                  size={28}
+                  color={selectedFormat === "pdf" ? "#6366F1" : "#6B7280"}
                 />
               </View>
               <Text style={[
@@ -125,10 +102,10 @@ const ExportScreen = () => {
               onPress={() => setSelectedFormat("txt")}
             >
               <View style={styles.formatIconContainer}>
-                <Ionicons 
-                  name="document-outline" 
-                  size={28} 
-                  color={selectedFormat === "txt" ? "#6366F1" : "#6B7280"} 
+                <Ionicons
+                  name="document-outline"
+                  size={28}
+                  color={selectedFormat === "txt" ? "#6366F1" : "#6B7280"}
                 />
               </View>
               <Text style={[
@@ -235,19 +212,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 15,
     elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
   },
   headerGradient: {
     borderRadius: 20,
     padding: 20,
     elevation: 4,
-    shadowColor: "#6366F1",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0px 4px 8px rgba(99, 102, 241, 0.3)",
   },
   headerContent: {
     flexDirection: "row",
@@ -293,10 +264,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#E5E7EB",
     elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
     position: "relative",
   },
   formatCardActive: {
@@ -336,10 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
   },
   optionRow: {
     flexDirection: "row",
@@ -375,10 +340,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
   },
   meetingRow: {
     flexDirection: "row",
@@ -456,10 +418,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     elevation: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    boxShadow: "0px 3px 6px rgba(0, 0, 0, 0.1)",
   },
   exportButtonDisabled: {
     opacity: 0.5,
@@ -489,10 +448,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     width: "80%",
     elevation: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)",
   },
   successIconContainer: {
     marginBottom: 16,

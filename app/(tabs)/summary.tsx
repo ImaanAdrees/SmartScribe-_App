@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { logShareDocument, logExportPDF, logSummaryGenerated } from "@/utils/activityLogger";
 
 const { width } = Dimensions.get("window");
 
@@ -48,6 +49,8 @@ const SummaryScreen = () => {
           "Weekly Team Standup Summary:\n1. Project timeline review\n2. UI design updates\n3. API integration challenges",
         subject: "Meeting Summary – SmartScribe",
       });
+      // Log document share activity
+      await logShareDocument({ method: "native_share" });
     } catch (error) {
       Alert.alert("Error", "Unable to share summary");
     }
@@ -83,6 +86,8 @@ const SummaryScreen = () => {
       const canOpen = await Linking.canOpenURL(emailUrl);
       if (canOpen) {
         await Linking.openURL(emailUrl);
+        // Log document share activity
+        await logShareDocument({ method: "email" });
       } else {
         Alert.alert("Error", "Unable to open email client");
       }
@@ -94,17 +99,6 @@ const SummaryScreen = () => {
   return (
     <View style={{ flex: 1 }}>
       <LinearGradient colors={["#7B2FF7", "#F107A3"]} style={styles.container}>
-        {/* 🔹 Top Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={toggleSidebar}>
-            <Ionicons name="menu" size={26} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Weekly Team Standup</Text>
-          <TouchableOpacity onPress={handleEmailShare} style={styles.emailIconButton}>
-            <Ionicons name="mail-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-
         {/* 🔹 Meeting Info */}
         <View style={styles.meetingInfo}>
           <Text style={styles.dateText}>📅 2023-10-15 • 45 min • 3 participants</Text>
@@ -116,7 +110,7 @@ const SummaryScreen = () => {
 
         {/* 🔹 Tabs */}
         <View style={styles.tabContainer}>
-          {[ "Summary" ].map((tab) => (
+          {["Summary"].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tabButton, activeTab === tab && styles.activeTab]}
@@ -172,7 +166,11 @@ const SummaryScreen = () => {
 
             <TouchableOpacity
               style={styles.exportButton}
-              onPress={() => router.push("/meeting/pdfexport")}
+              onPress={async () => {
+                // Log export PDF activity
+                await logExportPDF({ format: "pdf" });
+                router.push("/meeting/pdfexport");
+              }}
             >
               <Ionicons name="download-outline" size={18} color="#fff" />
               <Text style={styles.exportText}>Export PDF</Text>
@@ -270,9 +268,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     padding: 16,
     borderRadius: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
+    boxShadow: "0px 2px 5px rgba(0, 0, 0, 0.1)",
     elevation: 3,
   },
   sectionTitle: { fontSize: 16, fontWeight: "700", marginBottom: 8, color: "#333" },
@@ -281,11 +277,11 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems:"center",
+    alignItems: "center",
     backgroundColor: "#fff",
     paddingHorizontal: 20,
-    paddingBottom:40,
-    borderTopWidth:20,
+    paddingBottom: 40,
+    borderTopWidth: 20,
     borderColor: "#fff",
   },
   editButton: {

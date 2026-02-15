@@ -13,6 +13,8 @@ const getAuthHeaders = async () => {
 
 // Auth APIs
 export const authAPI = {
+  onStatusChange: (status) => {}, // Callback to notify root layout of auth changes
+  
   signup: async (name, email, password, role) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/signup`, {
@@ -42,7 +44,11 @@ export const authAPI = {
           name: data.name,
           email: data.email,
           role: data.role,
+          image: data.image || null,
         }));
+        await AsyncStorage.setItem('userId', data._id);
+        
+        if (authAPI.onStatusChange) authAPI.onStatusChange(true);
       }
 
       return { success: true, data };
@@ -84,13 +90,19 @@ export const authAPI = {
         
         const profileData = await profileResponse.json();
         
+        console.log('[authAPI] Profile data received:', profileData);
+        
         await AsyncStorage.setItem('userData', JSON.stringify({
           _id: data._id,
           name: profileData._id ? profileData.name : data.name || email.split('@')[0],
           email: profileData._id ? profileData.email : email,
           role: profileData._id ? profileData.role : 'Student',
           isAdmin: data.isAdmin,
+          image: profileData.image || null,
         }));
+        await AsyncStorage.setItem('userId', data._id);
+
+        if (authAPI.onStatusChange) authAPI.onStatusChange(true);
       }
 
       return { success: true, data };
@@ -101,8 +113,26 @@ export const authAPI = {
 
   logout: async () => {
     try {
-      // Clear all stored data
-      await AsyncStorage.multiRemove(['userToken', 'userData']);
+      const headers = await getAuthHeaders();
+      // Notify the backend about the logout
+      try {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers,
+        });
+      } catch (backendError) {
+        console.warn('[API] Backend logout call failed:', backendError.message);
+        // We still proceed with local cleanup to ensure user can "log out" locally
+      }
+
+      // Clear all stored data including token, user info, and any cached state
+      await AsyncStorage.multiRemove(['userToken', 'userData', 'userId']);
+      
+      // Notify listeners if any (like RootLayout)
+      if (authAPI.onStatusChange) {
+        authAPI.onStatusChange(false);
+      }
+      
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -139,6 +169,27 @@ export const authAPI = {
       return { success: false, error: error.message };
     }
   },
+
+  updateProfile: async (profileData) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(profileData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to update profile');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
 };
 
 // User APIs
@@ -164,26 +215,5 @@ export const userAPI = {
   },
 };
 
-// Auth API extensions for profile update
-authAPI.updateProfile = async (profileData) => {
-  try {
-    const headers = await getAuthHeaders();
-    const response = await fetch(`${API_URL}/api/users/profile`, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(profileData),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to update profile');
-    }
-
-    return { success: true, data };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
 
 export default API_URL;
