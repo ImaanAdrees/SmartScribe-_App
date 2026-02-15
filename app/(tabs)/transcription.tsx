@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { logExportPDF, logShareDocument } from "@/utils/activityLogger";
 
 const { width } = Dimensions.get("window");
 
@@ -87,7 +88,11 @@ const TranscriptionScreen = () => {
         <View style={styles.actionContainer}>
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/meeting/pdfexport")}
+            onPress={async () => {
+              // Log export PDF activity
+              await logExportPDF({ format: "pdf" });
+              router.push("/meeting/pdfexport");
+            }}
           >
             <LinearGradient colors={["#10B981", "#059669"]} style={styles.actionGradient}>
               <Ionicons name="download-outline" size={20} color="#FFF" />

@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { logShareDocument, logExportPDF, logSummaryGenerated } from "@/utils/activityLogger";
 
 const { width } = Dimensions.get("window");
 
@@ -48,6 +49,8 @@ const SummaryScreen = () => {
           "Weekly Team Standup Summary:\n1. Project timeline review\n2. UI design updates\n3. API integration challenges",
         subject: "Meeting Summary – SmartScribe",
       });
+      // Log document share activity
+      await logShareDocument({ method: "native_share" });
     } catch (error) {
       Alert.alert("Error", "Unable to share summary");
     }
@@ -83,6 +86,8 @@ const SummaryScreen = () => {
       const canOpen = await Linking.canOpenURL(emailUrl);
       if (canOpen) {
         await Linking.openURL(emailUrl);
+        // Log document share activity
+        await logShareDocument({ method: "email" });
       } else {
         Alert.alert("Error", "Unable to open email client");
       }
@@ -161,7 +166,11 @@ const SummaryScreen = () => {
 
             <TouchableOpacity
               style={styles.exportButton}
-              onPress={() => router.push("/meeting/pdfexport")}
+              onPress={async () => {
+                // Log export PDF activity
+                await logExportPDF({ format: "pdf" });
+                router.push("/meeting/pdfexport");
+              }}
             >
               <Ionicons name="download-outline" size={18} color="#fff" />
               <Text style={styles.exportText}>Export PDF</Text>

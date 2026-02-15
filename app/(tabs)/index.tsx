@@ -15,6 +15,7 @@ import {
   ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logRecordingStarted, logRecordingCompleted, logTranscriptionCreated } from "@/utils/activityLogger";
 
 
 const HomeScreen: React.FC = () => {
@@ -90,6 +91,8 @@ const HomeScreen: React.FC = () => {
 
     if (showRecordModal) {
       startTimer();
+      // Log recording started activity
+      logRecordingStarted();
     } else {
       stopTimer();
       setElapsedTime(0);
@@ -140,6 +143,13 @@ const HomeScreen: React.FC = () => {
   // 🟥 Stop Recording
   const handleStopRecording = () => {
     stopTimer();
+    
+    // Log recording completion with duration
+    logRecordingCompleted({ duration: formatTime(elapsedTime) });
+    
+    // Log transcription creation
+    logTranscriptionCreated({ recordingDuration: formatTime(elapsedTime) });
+    
     setShowRecordModal(false);
     router.push({
       pathname: "/(tabs)/transcription",

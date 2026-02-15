@@ -6,6 +6,7 @@ import { showToast } from "../../utils/ToastHelper";
 import { authAPI } from "../../utils/api";
 import { initializeSocket, joinNotificationRoom } from "../../utils/socket";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logLogin } from "../../utils/activityLogger";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -36,6 +37,9 @@ export default function LoginScreen() {
       const result = await authAPI.login(email, password);
 
       if (result.success) {
+        // Log login activity
+        await logLogin();
+        
         showToast("success", "Login Successful 🎉", "Welcome back!", 1500);
         // Socket connection and redirection are now handled centrally 
         // by RootLayout reacting to the auth status change.

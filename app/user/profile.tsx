@@ -22,6 +22,7 @@ import { authAPI } from "../../utils/api";
 import API_URL from "../../utils/api";
 import { showToast } from "../../utils/ToastHelper";
 import { disconnectSocket } from "../../utils/socket";
+import { logProfileUpdated, logLogout } from "../../utils/activityLogger";
 
 // Helper to construct full image URL
 const getImageUrl = (imagePath: string | null) => {
@@ -120,6 +121,10 @@ const ProfileScreen = () => {
             role: userRole,
           })
         );
+        
+        // Log profile update activity
+        await logProfileUpdated({ field: "name", newValue: tempName });
+        
         showToast("success", "Success", "Profile name updated!");
         setShowEditModal(false);
       } else {
@@ -186,6 +191,9 @@ const ProfileScreen = () => {
     console.log("[Profile] Logout confirmed - clearing data");
     setShowLogoutModal(false);
     try {
+      // Log logout activity
+      await logLogout();
+      
       // Disconnect socket connection
       disconnectSocket();
 
