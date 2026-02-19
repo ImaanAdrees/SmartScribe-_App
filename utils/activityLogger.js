@@ -1,4 +1,6 @@
 import * as SecureStore from "expo-secure-store";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 /**
@@ -9,17 +11,39 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:50
  */
 export const logUserActivity = async (action, description = null, metadata = {}) => {
   try {
-    const token = await SecureStore.getItemAsync("userToken");
+    // Helper to read token with platform-safe fallbacks
+    const getToken = async () => {
+      try {
+        if (Platform.OS === 'web') {
+          return await AsyncStorage.getItem('userToken');
+        }
+
+        if (SecureStore && typeof SecureStore.getItemAsync === 'function') {
+          return await SecureStore.getItemAsync('userToken');
+        }
+
+        return await AsyncStorage.getItem('userToken');
+      } catch (err) {
+        console.warn('SecureStore read failed, falling back to AsyncStorage', err);
+        try {
+          return await AsyncStorage.getItem('userToken');
+        } catch (e) {
+          return null;
+        }
+      }
+    };
+
+    const token = await getToken();
 
     if (!token) {
-      console.warn("User token not found, skipping activity log");
+      console.warn('User token not found, skipping activity log');
       return;
     }
 
     const response = await fetch(`${API_BASE_URL}/api/activity/log`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
@@ -30,13 +54,13 @@ export const logUserActivity = async (action, description = null, metadata = {})
     });
 
     if (!response.ok) {
-      console.error("Failed to log activity:", response.status);
+      console.error('Failed to log activity:', response.status);
       return;
     }
 
     console.log(`Activity logged: ${action}`);
   } catch (error) {
-    console.error("Error logging user activity:", error.message);
+    console.error('Error logging user activity:', error);
     // Don't throw error - activity tracking shouldn't break main functionality
   }
 };
