@@ -116,3 +116,4 @@ export const logNotificationViewed = async (metadata = {}) => {
 export const logShareDocument = async (metadata = {}) => {
   await logUserActivity("Share Document", "User shared a document", metadata);
 };
+
