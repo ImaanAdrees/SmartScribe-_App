@@ -10,14 +10,20 @@ import {
   SafeAreaView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
+  Alert,
   ScrollView,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+// import API_URL from "@/utils/api";
+import { DeviceEventEmitter } from 'react-native';
+import { useAudioRecorder, AudioModule, RecordingOptions } from 'expo-audio';
 import { logRecordingStarted, logRecordingCompleted, logTranscriptionCreated } from "@/utils/activityLogger";
 
-
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 const HomeScreen: React.FC = () => {
   const router = useRouter();
   const [showRecordModal, setShowRecordModal] = useState(false);
@@ -30,7 +36,7 @@ const HomeScreen: React.FC = () => {
   // ⏱ Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<any>(null);
 
   // 📚 Fetch user data and set greeting
   useEffect(() => {
@@ -59,6 +65,18 @@ const HomeScreen: React.FC = () => {
     } else {
       setGreeting("Good Evening");
     }
+  }, []);
+
+  // Debug: log API_URL and stored token on mount to help mobile networking/auth issues
+  useEffect(() => {
+    (async () => {
+      try {
+        const t = await AsyncStorage.getItem('userToken');
+        console.log('[DEBUG] API_URL:', API_URL, 'userToken exists:', !!t);
+      } catch (e) {
+        console.warn('[DEBUG] Failed to read userToken', e);
+      }
+    })();
   }, []);
 
   // 🔄 Reload user data whenever screen comes into focus
@@ -93,14 +111,190 @@ const HomeScreen: React.FC = () => {
       startTimer();
       // Log recording started activity
       logRecordingStarted();
+      startAudioRecording();
     } else {
       stopTimer();
       setElapsedTime(0);
       setIsPaused(false);
+      // if modal closed without saving, unload any active recording
+      unloadRecordingIfAny();
     }
 
     return () => stopTimer();
   }, [showRecordModal]);
+
+  const [recordingName, setRecordingName] = useState('');
+  const [recordingSessionId, setRecordingSessionId] = useState(Date.now());
+
+  // Audio recorder
+  const recorder = useAudioRecorder({
+    extension: '.m4a',
+    sampleRate: 44100,
+    numberOfChannels: 2,
+    bitRate: 128000,
+    ios: {
+      extension: '.m4a',
+      sampleRate: 44100,
+      bitRate: 128000,
+    },
+    android: {
+      extension: '.m4a',
+      sampleRate: 44100,
+      bitRate: 128000,
+    },
+    web: {
+      mimeType: 'audio/webm',
+      bitsPerSecond: 128000,
+    },
+    // Adding a session ID here forces the hook to recreate the recorder for each new session
+    // because useAudioRecorder uses JSON.stringify(options) as a dependency.
+    sessionId: recordingSessionId,
+  } as any);
+
+  const startAudioRecording = async () => {
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission denied', 'Microphone permission is required to record meetings.');
+        return;
+      }
+
+      // In expo-audio, setAudioModeAsync is on AudioModule
+      await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+
+      // LOG: Check URI before starting
+      console.log('[DEBUG] startAudioRecording. URI before record:', recorder.uri);
+
+      // Web requires explicit preparation. Try with or without 'Async' as per docs/logs.
+      try {
+        if ('prepareToRecordAsync' in recorder) {
+          await (recorder as any).prepareToRecordAsync();
+        } else if ('prepareToRecord' in recorder) {
+          await (recorder as any).prepareToRecord();
+        }
+      } catch (prepErr) {
+        console.warn('Silent prep error (might be okay if not web)', prepErr);
+      }
+
+      recorder.record();
+
+      // LOG: URI right after record() might update on some platforms
+      console.log('[DEBUG] startAudioRecording. URI after record():', recorder.uri);
+    } catch (err) {
+      console.error('Start recording error', err);
+    }
+  };
+
+  const pauseAudioRecording = async () => {
+    try {
+      recorder.pause();
+    } catch (err) {
+      console.error('Pause recording error', err);
+    }
+  };
+
+  const resumeAudioRecording = async () => {
+    try {
+      recorder.record();
+    } catch (err) {
+      console.error('Resume recording error', err);
+    }
+  };
+
+  const unloadRecordingIfAny = async () => {
+    try {
+      if (recorder.isRecording) {
+        recorder.stop();
+      }
+    } catch (err) {
+      console.error('Unload recording error', err);
+    }
+  };
+
+  const uploadRecording = async (uri: string | null, durationStr: string, name?: string) => {
+    if (!uri) return null;
+    try {
+      const uploadUrl = `${API_URL}/api/recording/upload`;
+      console.log('[DEBUG] Starting upload to:', uploadUrl);
+      console.log('[DEBUG] Recording name:', name, 'Duration:', durationStr);
+
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        console.warn('No auth token found before upload');
+        Alert.alert('Not signed in', 'Please sign in to upload recordings.');
+        return { success: false, error: 'No auth token' };
+      }
+      const form = new FormData();
+      const filename = uri.split('/').pop() || `recording-${Date.now()}.m4a`;
+
+      // Normalize URI for native platforms - IMPORTANT: fetch on Android needs file:// prefix
+      let normalizedUri = uri;
+      if (Platform.OS !== 'web' && !uri.startsWith('file://') && !uri.startsWith('content://')) {
+        normalizedUri = `file://${uri}`;
+        console.log('[DEBUG] Normalized URI for upload:', normalizedUri);
+      }
+
+      // Handle browser blob URIs vs native file URIs
+      if (Platform.OS === 'web' && uri.startsWith('blob:')) {
+        try {
+          const blob = await fetch(uri).then((r) => r.blob());
+          // In browsers, append the Blob directly with filename
+          form.append('audio', blob, filename);
+        } catch (e) {
+          console.warn('Failed to fetch blob from URI', e);
+          return { success: false, error: 'Failed to read recorded audio' };
+        }
+      } else {
+        form.append('audio', {
+          uri: normalizedUri,
+          name: filename,
+          type: 'audio/m4a',
+        } as any);
+      }
+      form.append('duration', durationStr);
+      if (name) form.append('name', name);
+
+      console.log('[DEBUG] Sending fetch request...');
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: form,
+      });
+
+      console.log('[DEBUG] Fetch response received. Status:', res.status);
+      let json = null;
+      try {
+        json = await res.json();
+      } catch (e) {
+        console.warn('Upload response not JSON', e);
+      }
+      console.log('uploadRecording status', res.status, 'body', json);
+      if (res.ok && json && json.success) {
+        Alert.alert('Upload', 'Recording uploaded successfully');
+        // Emit event so other screens (e.g., Recordings) can refresh in real-time
+        try {
+          DeviceEventEmitter.emit('recordingUploaded', { recording: json.recording });
+        } catch (e) {
+          // ignore
+        }
+        // clear the name input after successful save
+        try { setRecordingName(''); } catch (e) { }
+      } else {
+        const errMsg = (json && json.error) || `HTTP ${res.status}`;
+        console.warn('Upload failed response', res.status, json);
+        Alert.alert('Upload failed', errMsg || 'Unknown error');
+      }
+      return json;
+    } catch (err) {
+      console.error('Upload error', err);
+      if (err instanceof TypeError && err.message === 'Network request failed') {
+        console.error('[DEBUG] Possible causes: Server unreachable, incorrect IP, or CORS blocked.');
+      }
+      throw err; // Re-throw to be caught by the caller
+    }
+  };
 
   // 🧠 Handle timer start / stop
   const startTimer = () => {
@@ -119,9 +313,11 @@ const HomeScreen: React.FC = () => {
     if (isPaused) {
       // resume
       startTimer();
+      resumeAudioRecording();
     } else {
       // pause
       stopTimer();
+      pauseAudioRecording();
     }
     setIsPaused((prev) => !prev);
   };
@@ -144,17 +340,62 @@ const HomeScreen: React.FC = () => {
   const handleStopRecording = () => {
     stopTimer();
 
-    // Log recording completion with duration
-    logRecordingCompleted({ duration: formatTime(elapsedTime) });
+    // Stop & upload audio
+    (async () => {
+      try {
+        const startUri = recorder.uri;
+        console.log('[DEBUG] Stopping recording. isRecording:', recorder.isRecording, 'Start URI:', startUri);
 
-    // Log transcription creation
-    logTranscriptionCreated({ recordingDuration: formatTime(elapsedTime) });
+        if (recorder.isRecording) {
+          // stop() returns a Promise<void> on web and some native platforms
+          await (recorder.stop() as any);
+        }
 
-    setShowRecordModal(false);
-    router.push({
-      pathname: "/(tabs)/transcription",
-      params: { duration: formatTime(elapsedTime) },
-    });
+        // Finalize URI - some platforms take a moment to update the URI after stop
+        let uri = recorder.uri;
+
+        // On ALL platforms, if we had a previous URI, we MUST wait for a new one or at least wait for finalization
+        let attempts = 0;
+        const maxAttempts = Platform.OS === 'web' ? 15 : 5;
+
+        while ((!uri || uri === startUri) && attempts < maxAttempts) {
+          console.log('[DEBUG] Waiting for fresh URI... attempt', attempts, 'Current URI:', uri);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          uri = recorder.uri;
+          attempts++;
+        }
+
+        console.log('[DEBUG] Final recording URI for upload:', uri);
+
+        if (uri) {
+          const durationStr = formatTime(elapsedTime);
+          const uploadRes = await uploadRecording(uri, durationStr, recordingName || undefined);
+          if (!uploadRes || !uploadRes.success) {
+            console.warn('Upload failed', uploadRes);
+          }
+        } else {
+          console.warn('No recording URI found after stop and wait attempts');
+        }
+      } catch (err) {
+        console.error('Stop/upload error', err);
+      } finally {
+        // Reset session ID to ensure a clean recorder for the next session
+        setRecordingSessionId(Date.now());
+      }
+
+      // Log recording completion with duration
+      logRecordingCompleted({ duration: formatTime(elapsedTime) });
+
+      // Log transcription creation
+      logTranscriptionCreated({ recordingDuration: formatTime(elapsedTime) });
+
+      setShowRecordModal(false);
+      setRecordingName('');
+      router.push({
+        pathname: "/(tabs)/transcription",
+        params: { duration: formatTime(elapsedTime) },
+      });
+    })();
   };
 
   return (
@@ -170,7 +411,7 @@ const HomeScreen: React.FC = () => {
         <View style={styles.micContainer}>
           <TouchableOpacity
             style={styles.micButton}
-            onPress={() => setShowRecordModal(true)}
+            onPress={() => { setRecordingName(''); setShowRecordModal(true); }}
             activeOpacity={0.7}
           >
             <Ionicons name="mic-outline" size={42} color="#4F46E5" />
@@ -278,6 +519,13 @@ const HomeScreen: React.FC = () => {
           <Animated.View style={[styles.modalContent, { transform: [{ translateY: slideAnim }] }]}>
             <Text style={styles.modalTitle}>Recording in Progress 🎙️</Text>
 
+            <TextInput
+              placeholder="Recording name (optional)"
+              value={recordingName}
+              onChangeText={setRecordingName}
+              style={styles.recordingNameInput}
+            />
+
             <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
 
             <View style={styles.buttonRow}>
@@ -304,7 +552,7 @@ const HomeScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.closeButton}
-              onPress={() => setShowRecordModal(false)}
+              onPress={() => { setShowRecordModal(false); setRecordingName(''); }}
             >
               <Ionicons name="close" size={26} color="#FFF" />
             </TouchableOpacity>
@@ -422,6 +670,15 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, fontWeight: "600", color: "#111827", marginBottom: 10 },
   timerText: { fontSize: 26, fontWeight: "700", color: "#6D28D9", marginBottom: 20 },
+  recordingNameInput: {
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginBottom: 12,
+  },
   buttonRow: { flexDirection: "row", justifyContent: "space-evenly", width: "100%" },
   controlButton: {
     alignItems: "center",

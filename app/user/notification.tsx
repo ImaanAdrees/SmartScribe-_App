@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Platform, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -133,12 +133,12 @@ export default function NotificationsScreen() {
   return (
     <View style={styles.container}>
       {/* Back Button */}
-      <TouchableOpacity
+      {/* <TouchableOpacity
         style={styles.backButton}
         onPress={() => router.back()}
       >
         <Ionicons name="arrow-back" size={24} color="#4F46E5" />
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       <Text style={styles.header}>Notifications</Text>
 
@@ -203,7 +203,12 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+  container: { 
+    flex: 1, 
+    padding: 16, 
+    backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 24) : 16,
+  },
   backButton: {
     width: 40,
     height: 40,

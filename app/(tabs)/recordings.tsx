@@ -1,56 +1,151 @@
-import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, Alert, Platform } from 'react-native';
+import { DeviceEventEmitter } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+// import API_URL from '@/utils/api';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 export default function RecordingsScreen() {
   const router = useRouter();
 
-  const [recordings, setRecordings] = useState([
-    { id: '1', name: 'Meeting 1', duration: '35:12', date: '2 hours ago' },
-    { id: '2', name: 'Lecture AI', duration: '45:20', date: '1 day ago' },
-    { id: '3', name: 'Client Call', duration: '32:05', date: '3 days ago' },
-  ]);
+  const [recordings, setRecordings] = useState<any[]>([]);
 
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const player = useAudioPlayer('');
+  const status = useAudioPlayerStatus(player);
 
-  const playRecording = (item: any) => {
-    if (playingId === item.id && isPlaying) {
-      setIsPlaying(false);
-      return;
+  const fetchRecordings = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        console.warn('No user token found');
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/recording/user`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        console.warn('Fetch recordings failed', res.status);
+        return;
+      }
+
+      const data = await res.json();
+      if (data && data.success) {
+        setRecordings(Array.isArray(data.recordings) ? data.recordings : []);
+      }
+    } catch (err) {
+      console.error('Fetch recordings error', err);
     }
-    setPlayingId(item.id);
-    setIsPlaying(true);
   };
 
-  const replayRecording = (item: any) => {
-    setPlayingId(item.id);
-    setIsPlaying(true);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchRecordings();
+      return () => { };
+    }, [])
+  );
+
+  useEffect(() => {
+    // Listen for recordingUploaded events for real-time updates
+    const listener = DeviceEventEmitter.addListener('recordingUploaded', (payload: any) => {
+      try {
+        if (payload && payload.recording) {
+          setRecordings((prev) => [payload.recording, ...prev]);
+        } else {
+          fetchRecordings();
+        }
+      } catch (e) {
+        console.warn('Error handling recordingUploaded event', e);
+        fetchRecordings();
+      }
+    });
+
+    return () => {
+      listener.remove();
+    };
+  }, []);
+
+  const replayRecording = async (item: any) => {
+    await playRecording(item, true);
   };
+
+  const playRecording = async (item: any, restart = false) => {
+    try {
+      const uri = `${API_URL.replace(/\/$/, '')}/uploads/recording/${item.filename}`;
+
+      // If same item and playing -> pause
+      if (playingId === item._id && status.playing && !restart) {
+        player.pause();
+        return;
+      }
+
+      // If same item and paused -> resume
+      if (playingId === item._id && !status.playing && !restart) {
+        player.play();
+        return;
+      }
+
+      // New item or restart: replace and play
+      setPlayingId(item._id);
+      player.replace(uri);
+      player.play();
+
+    } catch (err) {
+      console.error('Playback error', err);
+    }
+  };
+
+  const stopPlayback = async () => {
+    player.pause();
+    setPlayingId(null);
+  };
+
+  // modal-based delete flow
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [toDelete, setToDelete] = useState<any | null>(null);
 
   const deleteRecording = (item: any) => {
-    Alert.alert('Delete Recording', `Are you sure you want to delete "${item.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          setRecordings((prev) => prev.filter((r) => r.id !== item.id));
-          if (playingId === item.id) {
-            setPlayingId(null);
-            setIsPlaying(false);
-          }
-        },
-      },
-    ]);
+    setToDelete(item);
+    setDeleteModalVisible(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete) return setDeleteModalVisible(false);
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await fetch(`${API_URL}/api/recording/${toDelete._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecordings((prev) => prev.filter((r) => r._id !== toDelete._id));
+        if (playingId === toDelete._id) await stopPlayback();
+      } else {
+        Alert.alert('Delete failed', data.error || 'Could not delete');
+      }
+    } catch (err) {
+      console.error('Delete error', err);
+      Alert.alert('Delete failed', 'Network error');
+    } finally {
+      setToDelete(null);
+      setDeleteModalVisible(false);
+    }
   };
 
   const renderItem = ({ item }: { item: any }) => {
-    const active = playingId === item.id;
+    const active = playingId === item._id;
+    const isPlaying = active && status.playing;
+
     return (
       <View style={styles.recordingCard}>
+
         <LinearGradient
           colors={active ? ['#4F46E5', '#1E3A8A'] : ['#ffffffff', '#ffffffff']}
           start={{ x: 0, y: 0 }}
@@ -63,10 +158,10 @@ export default function RecordingsScreen() {
                 <Text style={styles.iconText}>🎙️</Text>
               </View>
               <View style={styles.textSection}>
-                <Text style={styles.recordingName}>{item.name}</Text>
+                <Text style={styles.recordingName}>{item.name || item.originalName || item.filename}</Text>
                 <View style={styles.metaRow}>
-                  <Text style={styles.duration}>⏱️ {item.duration}</Text>
-                  <Text style={styles.date}>• {item.date}</Text>
+                  <Text style={styles.duration}>⏱️ {active ? formatMillis(status.currentTime * 1000) : (item.duration || '--:--')}</Text>
+                  <Text style={styles.date}>• {new Date(item.createdAt).toLocaleString()}</Text>
                 </View>
                 {active && (
                   <View style={styles.statusBadge}>
@@ -78,15 +173,15 @@ export default function RecordingsScreen() {
             </View>
 
             <View style={styles.buttonRow}>
-              <TouchableOpacity onPress={() => playRecording(item)}>
+              <TouchableOpacity onPress={() => (active && status.playing ? player.pause() : playRecording(item))}>
                 <LinearGradient
-                  colors={active && isPlaying ? ['#EF4444', '#DC2626'] : ['#7B2FF7', '#7B2FF7']}
+                  colors={active && player.playing ? ['#EF4444', '#DC2626'] : ['#7B2FF7', '#7B2FF7']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.actionBtn}
                 >
                   <Text style={styles.actionBtnText}>
-                    {active && isPlaying ? '⏸️ Pause' : '▶️ Play'}
+                    {active && status.playing ? '⏸️ Pause' : '▶️ Play'}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -109,14 +204,30 @@ export default function RecordingsScreen() {
     );
   };
 
+  const formatMillis = (ms: number) => {
+    if (!ms) return '00:00';
+    const total = Math.floor(ms / 1000);
+    const mins = Math.floor(total / 60);
+    const secs = total % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
   return (
     <LinearGradient
       colors={['#ffffffff', '#f9f9f9ff']}
       style={styles.container}
     >
+      <View style={styles.header}>
+        <Text style={styles.title}>Saved Recordings</Text>
+      </View>
+      <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+        <Text style={styles.debugText}>
+          Debug: {recordings.length} recordings — API: {API_URL}
+        </Text>
+      </View>
       <FlatList
         data={recordings}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item._id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
@@ -128,6 +239,23 @@ export default function RecordingsScreen() {
           </View>
         }
       />
+      {/* Delete confirmation modal */}
+      <Modal visible={deleteModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalBox}>
+            <Text style={styles.modalTitle}>Delete Recording</Text>
+            <Text style={styles.modalMessage}>Are you sure you want to delete "{toDelete?.originalName || toDelete?.filename}"?</Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => { setDeleteModalVisible(false); setToDelete(null); }}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalDelete} onPress={confirmDelete}>
+                <Text style={styles.modalDeleteText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -309,5 +437,59 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBox: {
+    width: '86%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 18,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 8,
+    color: '#111827',
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: '#4B5563',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-between',
+  },
+  modalCancel: {
+    flex: 1,
+    marginRight: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    color: '#111827',
+    fontWeight: '700',
+  },
+  modalDelete: {
+    flex: 1,
+    marginLeft: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+  },
+  modalDeleteText: {
+    color: '#fff',
+    fontWeight: '800',
   },
 });
