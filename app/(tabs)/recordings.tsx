@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 // import API_URL from '@/utils/api';
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 export default function RecordingsScreen() {
@@ -15,19 +15,30 @@ export default function RecordingsScreen() {
   const [recordings, setRecordings] = useState<any[]>([]);
 
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [positionMillis, setPositionMillis] = useState<number>(0);
-  const [durationMillis, setDurationMillis] = useState<number | null>(null);
-  const soundRef = useRef<any | null>(null);
+  const player = useAudioPlayer('');
+  const status = useAudioPlayerStatus(player);
 
   const fetchRecordings = async () => {
     try {
       const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        console.warn('No user token found');
+        return;
+      }
+
       const res = await fetch(`${API_URL}/api/recording/user`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (!res.ok) {
+        console.warn('Fetch recordings failed', res.status);
+        return;
+      }
+
       const data = await res.json();
-      if (data.success) setRecordings(data.recordings);
+      if (data && data.success) {
+        setRecordings(Array.isArray(data.recordings) ? data.recordings : []);
+      }
     } catch (err) {
       console.error('Fetch recordings error', err);
     }
@@ -36,13 +47,11 @@ export default function RecordingsScreen() {
   useFocusEffect(
     React.useCallback(() => {
       fetchRecordings();
-      return () => {};
+      return () => { };
     }, [])
   );
 
   useEffect(() => {
-    Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
-
     // Listen for recordingUploaded events for real-time updates
     const listener = DeviceEventEmitter.addListener('recordingUploaded', (payload: any) => {
       try {
@@ -59,10 +68,6 @@ export default function RecordingsScreen() {
 
     return () => {
       listener.remove();
-      if (soundRef.current) {
-        soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
     };
   }, []);
 
@@ -72,60 +77,33 @@ export default function RecordingsScreen() {
 
   const playRecording = async (item: any, restart = false) => {
     try {
+      const uri = `${API_URL.replace(/\/$/, '')}/uploads/recording/${item.filename}`;
+
       // If same item and playing -> pause
-      if (playingId === item._id && isPlaying && !restart) {
-        if (soundRef.current) await soundRef.current.pauseAsync();
-        setIsPlaying(false);
+      if (playingId === item._id && status.playing && !restart) {
+        player.pause();
         return;
       }
 
       // If same item and paused -> resume
-      if (playingId === item._id && !isPlaying && soundRef.current && !restart) {
-        await soundRef.current.playAsync();
-        setIsPlaying(true);
+      if (playingId === item._id && !status.playing && !restart) {
+        player.play();
         return;
       }
 
-      // New item: unload previous
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-
-      const token = await AsyncStorage.getItem('userToken');
-      const uri = `${API_URL.replace(/\/$/, '')}/uploads/recording/${item.filename}`;
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-      soundRef.current = sound;
+      // New item or restart: replace and play
       setPlayingId(item._id);
-      setIsPlaying(true);
+      player.replace(uri);
+      player.play();
 
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (!status) return;
-        if (status.isLoaded) {
-          setPositionMillis(status.positionMillis || 0);
-          setDurationMillis(status.durationMillis || null);
-          if (!status.isPlaying && status.didJustFinish) {
-            setIsPlaying(false);
-            setPlayingId(null);
-            setPositionMillis(0);
-          }
-        }
-      });
     } catch (err) {
       console.error('Playback error', err);
     }
   };
 
   const stopPlayback = async () => {
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
-    }
-    setIsPlaying(false);
+    player.pause();
     setPlayingId(null);
-    setPositionMillis(0);
-    setDurationMillis(null);
   };
 
   // modal-based delete flow
@@ -163,9 +141,11 @@ export default function RecordingsScreen() {
 
   const renderItem = ({ item }: { item: any }) => {
     const active = playingId === item._id;
+    const isPlaying = active && status.playing;
+
     return (
       <View style={styles.recordingCard}>
-        
+
         <LinearGradient
           colors={active ? ['#4F46E5', '#1E3A8A'] : ['#ffffffff', '#ffffffff']}
           start={{ x: 0, y: 0 }}
@@ -180,7 +160,7 @@ export default function RecordingsScreen() {
               <View style={styles.textSection}>
                 <Text style={styles.recordingName}>{item.name || item.originalName || item.filename}</Text>
                 <View style={styles.metaRow}>
-                  <Text style={styles.duration}>⏱️ {active ? formatMillis(positionMillis) : (item.duration || '--:--')}</Text>
+                  <Text style={styles.duration}>⏱️ {active ? formatMillis(status.currentTime * 1000) : (item.duration || '--:--')}</Text>
                   <Text style={styles.date}>• {new Date(item.createdAt).toLocaleString()}</Text>
                 </View>
                 {active && (
@@ -193,15 +173,15 @@ export default function RecordingsScreen() {
             </View>
 
             <View style={styles.buttonRow}>
-              <TouchableOpacity onPress={() => (active && isPlaying ? stopPlayback() : playRecording(item))}>
+              <TouchableOpacity onPress={() => (active && status.playing ? player.pause() : playRecording(item))}>
                 <LinearGradient
-                  colors={active && isPlaying ? ['#EF4444', '#DC2626'] : ['#7B2FF7', '#7B2FF7']}
+                  colors={active && player.playing ? ['#EF4444', '#DC2626'] : ['#7B2FF7', '#7B2FF7']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.actionBtn}
                 >
                   <Text style={styles.actionBtnText}>
-                    {active && isPlaying ? '⏸️ Pause' : '▶️ Play'}
+                    {active && status.playing ? '⏸️ Pause' : '▶️ Play'}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>
@@ -239,6 +219,11 @@ export default function RecordingsScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.title}>Saved Recordings</Text>
+      </View>
+      <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+        <Text style={styles.debugText}>
+          Debug: {recordings.length} recordings — API: {API_URL}
+        </Text>
       </View>
       <FlatList
         data={recordings}

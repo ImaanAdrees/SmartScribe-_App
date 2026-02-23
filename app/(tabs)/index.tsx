@@ -20,7 +20,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 // import API_URL from "@/utils/api";
 import { DeviceEventEmitter } from 'react-native';
-import { Audio } from 'expo-audio';
+import { useAudioRecorder, AudioModule, RecordingOptions } from 'expo-audio';
 import { logRecordingStarted, logRecordingCompleted, logTranscriptionCreated } from "@/utils/activityLogger";
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
@@ -36,7 +36,7 @@ const HomeScreen: React.FC = () => {
   // ⏱ Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<any>(null);
 
   // 📚 Fetch user data and set greeting
   useEffect(() => {
@@ -123,17 +123,63 @@ const HomeScreen: React.FC = () => {
     return () => stopTimer();
   }, [showRecordModal]);
 
-  // Audio recording reference
-  const recordingRef = useRef<any | null>(null);
   const [recordingName, setRecordingName] = useState('');
+  const [recordingSessionId, setRecordingSessionId] = useState(Date.now());
+
+  // Audio recorder
+  const recorder = useAudioRecorder({
+    extension: '.m4a',
+    sampleRate: 44100,
+    numberOfChannels: 2,
+    bitRate: 128000,
+    ios: {
+      extension: '.m4a',
+      sampleRate: 44100,
+      bitRate: 128000,
+    },
+    android: {
+      extension: '.m4a',
+      sampleRate: 44100,
+      bitRate: 128000,
+    },
+    web: {
+      mimeType: 'audio/webm',
+      bitsPerSecond: 128000,
+    },
+    // Adding a session ID here forces the hook to recreate the recorder for each new session
+    // because useAudioRecorder uses JSON.stringify(options) as a dependency.
+    sessionId: recordingSessionId,
+  } as any);
 
   const startAudioRecording = async () => {
     try {
-      const perm = await Audio.requestPermissionsAsync();
-      if (!perm.granted) return;
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RECORDING_OPTIONS_PRESET_HIGH_QUALITY);
-      recordingRef.current = recording;
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission denied', 'Microphone permission is required to record meetings.');
+        return;
+      }
+
+      // In expo-audio, setAudioModeAsync is on AudioModule
+      await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+
+      // LOG: Check URI before starting
+      console.log('[DEBUG] startAudioRecording. URI before record:', recorder.uri);
+
+      // Web requires explicit preparation. Try with or without 'Async' as per docs/logs.
+      try {
+        if ('prepareToRecordAsync' in recorder) {
+          await (recorder as any).prepareToRecordAsync();
+        } else if ('prepareToRecord' in recorder) {
+          await (recorder as any).prepareToRecord();
+        }
+      } catch (prepErr) {
+        console.warn('Silent prep error (might be okay if not web)', prepErr);
+      }
+
+      recorder.record();
+
+      // LOG: URI right after record() might update on some platforms
+      console.log('[DEBUG] startAudioRecording. URI after record():', recorder.uri);
     } catch (err) {
       console.error('Start recording error', err);
     }
@@ -141,7 +187,7 @@ const HomeScreen: React.FC = () => {
 
   const pauseAudioRecording = async () => {
     try {
-      if (recordingRef.current) await recordingRef.current.pauseAsync();
+      recorder.pause();
     } catch (err) {
       console.error('Pause recording error', err);
     }
@@ -149,7 +195,7 @@ const HomeScreen: React.FC = () => {
 
   const resumeAudioRecording = async () => {
     try {
-      if (recordingRef.current) await recordingRef.current.startAsync();
+      recorder.record();
     } catch (err) {
       console.error('Resume recording error', err);
     }
@@ -157,11 +203,8 @@ const HomeScreen: React.FC = () => {
 
   const unloadRecordingIfAny = async () => {
     try {
-      if (recordingRef.current) {
-        try {
-          await recordingRef.current.stopAndUnloadAsync();
-        } catch (e) {}
-        recordingRef.current = null;
+      if (recorder.isRecording) {
+        recorder.stop();
       }
     } catch (err) {
       console.error('Unload recording error', err);
@@ -171,6 +214,10 @@ const HomeScreen: React.FC = () => {
   const uploadRecording = async (uri: string | null, durationStr: string, name?: string) => {
     if (!uri) return null;
     try {
+      const uploadUrl = `${API_URL}/api/recording/upload`;
+      console.log('[DEBUG] Starting upload to:', uploadUrl);
+      console.log('[DEBUG] Recording name:', name, 'Duration:', durationStr);
+
       const token = await AsyncStorage.getItem('userToken');
       if (!token) {
         console.warn('No auth token found before upload');
@@ -179,6 +226,14 @@ const HomeScreen: React.FC = () => {
       }
       const form = new FormData();
       const filename = uri.split('/').pop() || `recording-${Date.now()}.m4a`;
+
+      // Normalize URI for native platforms - IMPORTANT: fetch on Android needs file:// prefix
+      let normalizedUri = uri;
+      if (Platform.OS !== 'web' && !uri.startsWith('file://') && !uri.startsWith('content://')) {
+        normalizedUri = `file://${uri}`;
+        console.log('[DEBUG] Normalized URI for upload:', normalizedUri);
+      }
+
       // Handle browser blob URIs vs native file URIs
       if (Platform.OS === 'web' && uri.startsWith('blob:')) {
         try {
@@ -191,7 +246,7 @@ const HomeScreen: React.FC = () => {
         }
       } else {
         form.append('audio', {
-          uri,
+          uri: normalizedUri,
           name: filename,
           type: 'audio/m4a',
         } as any);
@@ -199,7 +254,8 @@ const HomeScreen: React.FC = () => {
       form.append('duration', durationStr);
       if (name) form.append('name', name);
 
-      const res = await fetch(`${API_URL}/api/recording/upload`, {
+      console.log('[DEBUG] Sending fetch request...');
+      const res = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -207,6 +263,7 @@ const HomeScreen: React.FC = () => {
         body: form,
       });
 
+      console.log('[DEBUG] Fetch response received. Status:', res.status);
       let json = null;
       try {
         json = await res.json();
@@ -223,7 +280,7 @@ const HomeScreen: React.FC = () => {
           // ignore
         }
         // clear the name input after successful save
-        try { setRecordingName(''); } catch (e) {}
+        try { setRecordingName(''); } catch (e) { }
       } else {
         const errMsg = (json && json.error) || `HTTP ${res.status}`;
         console.warn('Upload failed response', res.status, json);
@@ -232,8 +289,10 @@ const HomeScreen: React.FC = () => {
       return json;
     } catch (err) {
       console.error('Upload error', err);
-      Alert.alert('Upload failed', 'Network error');
-      return null;
+      if (err instanceof TypeError && err.message === 'Network request failed') {
+        console.error('[DEBUG] Possible causes: Server unreachable, incorrect IP, or CORS blocked.');
+      }
+      throw err; // Re-throw to be caught by the caller
     }
   };
 
@@ -284,18 +343,44 @@ const HomeScreen: React.FC = () => {
     // Stop & upload audio
     (async () => {
       try {
-        if (recordingRef.current) {
-          await recordingRef.current.stopAndUnloadAsync();
-          const uri = recordingRef.current.getURI();
-          recordingRef.current = null;
+        const startUri = recorder.uri;
+        console.log('[DEBUG] Stopping recording. isRecording:', recorder.isRecording, 'Start URI:', startUri);
+
+        if (recorder.isRecording) {
+          // stop() returns a Promise<void> on web and some native platforms
+          await (recorder.stop() as any);
+        }
+
+        // Finalize URI - some platforms take a moment to update the URI after stop
+        let uri = recorder.uri;
+
+        // On ALL platforms, if we had a previous URI, we MUST wait for a new one or at least wait for finalization
+        let attempts = 0;
+        const maxAttempts = Platform.OS === 'web' ? 15 : 5;
+
+        while ((!uri || uri === startUri) && attempts < maxAttempts) {
+          console.log('[DEBUG] Waiting for fresh URI... attempt', attempts, 'Current URI:', uri);
+          await new Promise(resolve => setTimeout(resolve, 200));
+          uri = recorder.uri;
+          attempts++;
+        }
+
+        console.log('[DEBUG] Final recording URI for upload:', uri);
+
+        if (uri) {
           const durationStr = formatTime(elapsedTime);
           const uploadRes = await uploadRecording(uri, durationStr, recordingName || undefined);
           if (!uploadRes || !uploadRes.success) {
             console.warn('Upload failed', uploadRes);
           }
+        } else {
+          console.warn('No recording URI found after stop and wait attempts');
         }
       } catch (err) {
         console.error('Stop/upload error', err);
+      } finally {
+        // Reset session ID to ensure a clean recorder for the next session
+        setRecordingSessionId(Date.now());
       }
 
       // Log recording completion with duration
@@ -465,10 +550,10 @@ const HomeScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => { setShowRecordModal(false); setRecordingName(''); }}
-              >
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => { setShowRecordModal(false); setRecordingName(''); }}
+            >
               <Ionicons name="close" size={26} color="#FFF" />
             </TouchableOpacity>
           </Animated.View>

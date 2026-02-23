@@ -11,25 +11,13 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:50
  */
 export const logUserActivity = async (action, description = null, metadata = {}) => {
   try {
-    // Helper to read token with platform-safe fallbacks
+    // Use AsyncStorage consistently for tokens
     const getToken = async () => {
       try {
-        if (Platform.OS === 'web') {
-          return await AsyncStorage.getItem('userToken');
-        }
-
-        if (SecureStore && typeof SecureStore.getItemAsync === 'function') {
-          return await SecureStore.getItemAsync('userToken');
-        }
-
         return await AsyncStorage.getItem('userToken');
       } catch (err) {
-        console.warn('SecureStore read failed, falling back to AsyncStorage', err);
-        try {
-          return await AsyncStorage.getItem('userToken');
-        } catch (e) {
-          return null;
-        }
+        console.warn('Failed to get token for activity log', err);
+        return null;
       }
     };
 

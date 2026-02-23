@@ -27,6 +27,7 @@ interface NotificationContextType {
     notifications: Notification[];
     unreadCount: number;
     isLoading: boolean;
+    socketConnected: boolean;
     fetchNotifications: () => Promise<void>;
     markAsRead: (notificationId: string) => Promise<void>;
     deleteNotification: (notificationId: string) => Promise<void>;
@@ -41,28 +42,47 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode; isLogge
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
+    const [socketConnected, setSocketConnected] = useState(false);
 
     // SDK 54+ Audio implementation
     const player = useAudioPlayer(require('../assets/sounds/notification.wav'));
 
+    // Ensure audio mode is correct on mount
+    useEffect(() => {
+        const setupAudio = async () => {
+            try {
+                const { AudioModule } = require('expo-audio');
+                await AudioModule.setAudioModeAsync({
+                    playsInSilentModeIOS: true,
+                    interruptionModeIOS: 1, // InterruptionModeIOS.DoNotMix
+                    allowsRecordingIOS: false,
+                    shouldRouteThroughEarpieceAndroid: false,
+                    interruptionModeAndroid: 1, // InterruptionModeAndroid.DoNotMix
+                    shouldDuckAndroid: true,
+                    playThroughReceiverDuringCallAndroid: false,
+                });
+                console.log('[NotificationContext] Audio mode configured');
+            } catch (error) {
+                console.warn('[NotificationContext] Failed to set audio mode:', error);
+            }
+        };
+        setupAudio();
+    }, []);
+
     const playNotificationSound = useCallback(async () => {
         try {
-            console.log('[NotificationContext] Attempting to play sound, player status:', player?.playing);
             if (player) {
-                console.log('[NotificationContext] Playing notification sound...');
-                await player.play();
-                console.log('[NotificationContext] Sound played successfully');
-            } else {
-                console.warn('[NotificationContext] Audio player not initialized');
+                // Non-blocking pause/seek for speed
+                player.pause();
+                player.seekTo(0);
+
+                // Fire and forget play locally
+                player.play();
             }
         } catch (error: any) {
-            console.error('[NotificationContext] Sound play error:', error.message, error);
+            console.error('[NotificationContext] Sound play error:', error.message);
         }
     }, [player]);
-
-    useEffect(() => {
-        // useAudioPlayer cleans up itself usually when component unmounts
-    }, []);
 
     const fetchNotifications = useCallback(async () => {
         const token = await AsyncStorage.getItem('userToken');
@@ -110,17 +130,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode; isLogge
 
     const deleteNotification = async (notificationId: string) => {
         const token = await AsyncStorage.getItem('userToken');
-        if (!token) {
-            console.error('[NotificationContext] No token found, cannot delete notification');
-            showToast('error', 'Error', 'Please login to delete notifications');
-            return;
-        }
+        if (!token) return;
 
-        // 1. Save current state for rollback
         const previousNotifications = [...notifications];
         const previousUnreadCount = unreadCount;
 
-        // 2. Optimistically update UI
         setNotifications(prev => prev.filter((n: Notification) => n.id !== notificationId));
         setUnreadCount(prev => {
             const deletedNotif = previousNotifications.find(n => n.id === notificationId);
@@ -128,29 +142,19 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode; isLogge
         });
 
         try {
-            console.log('[NotificationContext] Optimistically deleted. Syncing with backend:', notificationId);
-
             await axios.delete(`${API_URL}/api/notifications/${notificationId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
-
-            console.log('[NotificationContext] Backend sync successful');
             showToast('success', 'Deleted', 'Notification removed');
         } catch (error: any) {
-            console.error('[NotificationContext] Sync failed, rolling back:', error.response?.data || error.message);
-
-            // 3. Rollback state on failure
             setNotifications(previousNotifications);
             setUnreadCount(previousUnreadCount);
-
-            const errorMessage = error.response?.data?.message || 'Failed to sync deletion with server';
-            showToast('error', 'Sync Failed', errorMessage);
+            showToast('error', 'Sync Failed', error.message);
         }
     };
 
     useEffect(() => {
         if (isLoggedIn) {
-            console.log('[NotificationContext] User logged in, fetching notifications...');
             fetchNotifications();
         }
     }, [isLoggedIn, fetchNotifications]);
@@ -160,10 +164,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode; isLogge
 
         const setupListener = async () => {
             try {
-                console.log('[NotificationContext] Setting up notification listener...');
-                unsubscribe = await onNewNotification((notification: any) => {
-                    console.log('[NotificationContext] New notification received:', notification);
+                // Central check for socket room re-join as a secondary safeguard
+                if (isLoggedIn) {
+                    const userId = await AsyncStorage.getItem('userId');
+                    const { getSocket, joinNotificationRoom } = require('../utils/socket');
+                    if (userId) {
+                        await joinNotificationRoom(userId);
+                    }
 
+                    const socket = await getSocket();
+                    if (socket) {
+                        setSocketConnected(socket.connected);
+                        socket.on('connect', () => setSocketConnected(true));
+                        socket.on('disconnect', () => setSocketConnected(false));
+                    }
+                }
+
+                unsubscribe = await onNewNotification((notification: any) => {
+                    // 1. Trigger sound immediately for zero latency
+                    playNotificationSound().catch(() => { });
+
+                    // 2. Process state updates
                     const newNotif: Notification = {
                         id: notification.id || `notif_${Date.now()}`,
                         title: notification.title,
@@ -174,26 +195,13 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode; isLogge
                         tag: notification.tag || 'SmartScribe',
                     };
 
-                    console.log('[NotificationContext] Adding notification to state:', newNotif);
                     setNotifications(prev => [newNotif, ...prev]);
                     setUnreadCount(prev => prev + 1);
 
-                    // Play sound with error handling
-                    playNotificationSound().catch((error: any) => {
-                        console.warn('[NotificationContext] Failed to play sound:', error);
-                    });
-
-                    // Show toast with error handling
-                    try {
-                        const toastType = notification.type === 'alert' ? 'error' : notification.type === 'success' ? 'success' : 'info';
-                        const messageWithSender = `${notification.message}\n📧 Sent by SmartScribe`;
-                        console.log('[NotificationContext] Showing toast:', toastType, notification.title, messageWithSender);
-                        showToast(toastType, notification.title, messageWithSender);
-                    } catch (error: any) {
-                        console.error('[NotificationContext] Failed to show toast:', error);
-                    }
+                    // 3. Show visual feedback
+                    const toastType = notification.type === 'alert' ? 'error' : notification.type === 'success' ? 'success' : 'info';
+                    showToast(toastType, notification.title, notification.message);
                 });
-                console.log('[NotificationContext] Listener setup completed');
             } catch (error: any) {
                 console.error('[NotificationContext] Failed to setup listener:', error);
             }
@@ -202,23 +210,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode; isLogge
         setupListener();
 
         return () => {
-            if (unsubscribe) {
-                console.log('[NotificationContext] Cleaning up notification listener');
-                unsubscribe();
-            }
+            if (unsubscribe) unsubscribe();
         };
-    }, [playNotificationSound]);
+    }, [isLoggedIn, playNotificationSound]);
 
     useEffect(() => {
-        fetchNotifications();
-
-        // Refresh every 5 minutes as a fallback
-        const interval = setInterval(fetchNotifications, 5 * 60 * 1000);
+        const interval = setInterval(() => {
+            if (isLoggedIn) fetchNotifications();
+        }, 5 * 60 * 1000);
         return () => clearInterval(interval);
-    }, [fetchNotifications]);
+    }, [isLoggedIn, fetchNotifications]);
 
     return (
-        <NotificationContext.Provider value={{ notifications, unreadCount, isLoading, fetchNotifications, markAsRead, deleteNotification }}>
+        <NotificationContext.Provider value={{
+            notifications,
+            unreadCount,
+            isLoading,
+            socketConnected,
+            fetchNotifications,
+            markAsRead,
+            deleteNotification
+        }}>
             {children}
         </NotificationContext.Provider>
     );
