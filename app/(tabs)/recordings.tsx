@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, Alert, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DeviceEventEmitter } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useRouter } from 'expo-router';
@@ -70,6 +71,8 @@ export default function RecordingsScreen() {
       listener.remove();
     };
   }, []);
+
+  const insets = useSafeAreaInsets();
 
   const replayRecording = async (item: any) => {
     await playRecording(item, true);
@@ -229,7 +232,7 @@ export default function RecordingsScreen() {
         data={recordings}
         keyExtractor={(item) => item._id}
         renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, { paddingBottom: 30 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
