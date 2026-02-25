@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Dimensions, Platform } from "react-native";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from "expo-router";
 import SplashScreen from "./SplashScreen";
 import Toast from "react-native-toast-message";
@@ -193,30 +194,32 @@ export default function RootLayout() {
   if (isLoading) return <SplashScreen />;
 
   return (
-    <NotificationProvider isLoggedIn={isLoggedIn}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="user" />
-        <Stack.Screen name="meeting" />
-        <Stack.Screen name="maintenance-screen" options={{ gestureEnabled: false }} />
-      </Stack>
-      <Toast />
+    <SafeAreaProvider>
+      <NotificationProvider isLoggedIn={isLoggedIn}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="auth" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="user" />
+          <Stack.Screen name="meeting" />
+          <Stack.Screen name="maintenance-screen" options={{ gestureEnabled: false }} />
+        </Stack>
+        <Toast />
 
-      {/* Maintenance Warning Overlay */}
-      {maintenanceCountdown !== null && maintenanceCountdown > 0 && (
-        <View style={styles.overlay}>
-          <View style={styles.warningBox}>
-            <Text style={styles.warningTitle}>System Maintenance</Text>
-            <Text style={styles.warningText}>
-              Maintenance mode will be enabled in:
-            </Text>
-            <Text style={styles.countdownText}>{maintenanceCountdown}s</Text>
-            <Text style={styles.subText}>Please save your work.</Text>
+        {/* Maintenance Warning Overlay */}
+        {maintenanceCountdown !== null && maintenanceCountdown > 0 && (
+          <View style={styles.overlay}>
+            <View style={styles.warningBox}>
+              <Text style={styles.warningTitle}>System Maintenance</Text>
+              <Text style={styles.warningText}>
+                Maintenance mode will be enabled in:
+              </Text>
+              <Text style={styles.countdownText}>{maintenanceCountdown}s</Text>
+              <Text style={styles.subText}>Please save your work.</Text>
+            </View>
           </View>
-        </View>
-      )}
-    </NotificationProvider>
+        )}
+      </NotificationProvider>
+    </SafeAreaProvider>
   );
 }
 
