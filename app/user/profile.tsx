@@ -159,11 +159,11 @@ const ProfileScreen = () => {
 
     setLoading(true);
     try {
-      const response = await authAPI.changePassword({
+      const response = await authAPI.changePassword(
         oldPassword,
         newPassword,
-        confirmPassword,
-      });
+        confirmPassword
+      );
 
       if (response.success) {
         showToast("success", "Success", "Password changed successfully!");
@@ -172,7 +172,7 @@ const ProfileScreen = () => {
         setConfirmPassword("");
         setShowPasswordModal(false);
       } else {
-        showToast("error", "Failed", response.error || "Please try again");
+        showToast("error", "Error", response.error || "Failed to change password");
       }
     } catch (error) {
       showToast("error", "Error", "Failed to change password");
