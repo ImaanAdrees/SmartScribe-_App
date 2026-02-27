@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useState, useRef, useEffect } from "react";
 import {
   Animated,
@@ -12,26 +12,103 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
-import { logExportPDF, logShareDocument } from "@/utils/activityLogger";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logExportPDF } from "@/utils/activityLogger";
 
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 const { width } = Dimensions.get("window");
 
 const TranscriptionScreen = () => {
   const router = useRouter();
+  const { recordingId } = useLocalSearchParams();
   const [copySuccess, setCopySuccess] = useState(false);
   const [isSidebarVisible, setSidebarVisible] = useState(false);
   const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
 
-  const transcriptText = `
-  [00:00] John: Good morning everyone, let's start with updates.
-  [00:10] Jane: The new UI mockups are complete and shared on Figma.
-  [00:20] Mike: Backend API integration for login is finalized.
-  [00:40] John: Excellent. Let's move on to bug fixes and testing plans.
-  [01:00] Jane: I'll handle visual polish and minor layout issues.
-  `;
+  const [loading, setLoading] = useState(!!recordingId);
+  const [recording, setRecording] = useState<any>(null);
+  const [transcription, setTranscription] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchHistory();
+    if (recordingId) {
+      fetchTranscription(recordingId);
+    }
+  }, [recordingId]);
+
+  const fetchHistory = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await fetch(`${API_URL}/api/recording/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.recordings)) {
+        setHistory(data.recordings);
+      } else {
+        setHistory([]);
+      }
+    } catch (err) {
+      console.error('Fetch history error', err);
+      setHistory([]);
+    }
+  };
+
+  const fetchTranscription = async (id: any) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const token = await AsyncStorage.getItem('userToken');
+      const res = await fetch(`${API_URL}/api/recording/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setRecording(data.recording);
+        setTranscription(data.transcription);
+
+        // If transcription doesn't exist yet, it's likely still processing
+        if (!data.transcription) {
+          // Poll every 3 seconds for transcription
+          const pollInterval = setInterval(async () => {
+            const pollRes = await fetch(`${API_URL}/api/recording/${id}`, {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            const pollData = await pollRes.json();
+            if (pollData.success && pollData.transcription) {
+              setTranscription(pollData.transcription);
+              clearInterval(pollInterval);
+            }
+          }, 3000);
+
+          // Cleanup interval after 30 seconds max
+          setTimeout(() => clearInterval(pollInterval), 30000);
+        }
+      } else {
+        setError(data.error || 'Failed to fetch recording');
+      }
+    } catch (err) {
+      console.error('Fetch transcription error', err);
+      setError('Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const transcriptText = transcription?.text || "";
 
   const handleCopy = async () => {
+    if (!transcriptText) return;
     await Clipboard.setStringAsync(transcriptText);
     setCopySuccess(true);
     setTimeout(() => setCopySuccess(false), 1500);
@@ -47,23 +124,39 @@ const TranscriptionScreen = () => {
     setSidebarVisible(!isSidebarVisible);
   };
 
+  const handleSelectHistory = (id: string) => {
+    toggleSidebar();
+    router.setParams({ recordingId: id });
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <LinearGradient colors={["#EEF2FF", "#F9FAFB"]} style={styles.gradient}>
+        {/* 🔹 Top Bar */}
+        {/* <View style={styles.topBar}>
+          <TouchableOpacity style={styles.menuButton} onPress={toggleSidebar}>
+            <Ionicons name="menu-outline" size={24} color="#1F2937" />
+          </TouchableOpacity>
+          <Text style={styles.topBarTitle}>Transcription</Text>
+          <View style={{ width: 40 }} />
+        </View> */}
+
         {/* 🔹 Header Card */}
         <View style={styles.headerCard}>
           <LinearGradient colors={["#6366F1", "#8B5CF6"]} style={styles.headerGradient}>
             <View style={styles.headerContent}>
               <Text style={styles.headerIcon}>📝</Text>
               <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>Meeting Transcription</Text>
+                <Text style={styles.headerTitle}>{recording?.name || (recordingId ? "Loading..." : "Select a Recording")}</Text>
                 <View style={styles.metaRow}>
                   <Ionicons name="time-outline" size={14} color="#E5E7EB" />
-                  <Text style={styles.metaText}>45 mins</Text>
+                  <Text style={styles.metaText}>{recording?.duration || "--:--"}</Text>
                   <View style={styles.dot} />
                   <Ionicons name="calendar-outline" size={14} color="#E5E7EB" />
-                  <Text style={styles.metaText}>Oct 15, 2025</Text>
+                  <Text style={styles.metaText}>
+                    {recording?.createdAt ? new Date(recording.createdAt).toLocaleDateString() : "--/--/----"}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -74,20 +167,43 @@ const TranscriptionScreen = () => {
         <View style={styles.transcriptContainer}>
           <View style={styles.transcriptHeader}>
             <Text style={styles.transcriptHeaderText}>Full Transcript</Text>
-            <TouchableOpacity onPress={handleCopy}>
-              <Ionicons name="copy-outline" size={20} color="#6366F1" />
+            <TouchableOpacity onPress={handleCopy} disabled={!transcriptText}>
+              <Ionicons name="copy-outline" size={20} color={transcriptText ? "#6366F1" : "#9CA3AF"} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.transcriptScroll} showsVerticalScrollIndicator={false}>
-            <Text style={styles.transcriptText}>{transcriptText}</Text>
+            {!recordingId ? (
+              <View style={styles.centerContainer}>
+                <Ionicons name="documents-outline" size={48} color="#9CA3AF" />
+                <Text style={styles.statusText}>Select a recording from the menu to view its transcription.</Text>
+              </View>
+            ) : loading ? (
+              <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#6366F1" />
+                <Text style={styles.statusText}>Loading your recording...</Text>
+              </View>
+            ) : error ? (
+              <View style={styles.centerContainer}>
+                <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : !transcription ? (
+              <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#6366F1" />
+                <Text style={styles.statusText}>Transcribing your audio... This may take a moment.</Text>
+              </View>
+            ) : (
+              <Text style={styles.transcriptText}>{transcriptText}</Text>
+            )}
           </ScrollView>
         </View>
 
         {/* 🔹 Action Buttons */}
         <View style={styles.actionContainer}>
           <TouchableOpacity
-            style={styles.actionButton}
+            style={[styles.actionButton, !transcriptText && { opacity: 0.5 }]}
+            disabled={!transcriptText}
             onPress={async () => {
               // Log export PDF activity
               await logExportPDF({ format: "pdf" });
@@ -97,6 +213,16 @@ const TranscriptionScreen = () => {
             <LinearGradient colors={["#10B981", "#059669"]} style={styles.actionGradient}>
               <Ionicons name="download-outline" size={20} color="#FFF" />
               <Text style={styles.actionText}>Export PDF</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={toggleSidebar}
+          >
+            <LinearGradient colors={["#6366F1", "#4F46E5"]} style={styles.actionGradient}>
+              <Ionicons name="time-outline" size={20} color="#FFF" />
+              <Text style={styles.actionText}>History</Text>
             </LinearGradient>
           </TouchableOpacity>
 
@@ -138,8 +264,8 @@ const TranscriptionScreen = () => {
               <Text style={styles.profileText}>S</Text>
             </View>
             <View>
-              <Text style={styles.profileName}>SmartScribe</Text>
-              <Text style={styles.profileSubtitle}>Voice Notes</Text>
+              <Text style={styles.profileName}>SmartScribe History</Text>
+              <Text style={styles.profileSubtitle}>Previous Recordings</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.closeButton} onPress={toggleSidebar}>
@@ -148,27 +274,34 @@ const TranscriptionScreen = () => {
         </LinearGradient>
 
         <ScrollView style={styles.sidebarContent}>
-          <Text style={styles.sidebarSectionTitle}>Previous Meetings</Text>
+          <Text style={styles.sidebarSectionTitle}>Your Recordings</Text>
 
-          {[
-            { title: "Weekly Sync", date: "Oct 22, 2025", duration: "45 min" },
-            { title: "Sprint Planning", date: "Oct 20, 2025", duration: "60 min" },
-            { title: "Client Review", date: "Oct 18, 2025", duration: "30 min" },
-            { title: "UI Update", date: "Oct 15, 2025", duration: "45 min" },
-            { title: "Team Standup", date: "Oct 13, 2025", duration: "15 min" },
-          ].map((item, index) => (
-            <TouchableOpacity key={index} style={styles.historyItem}>
-              <View style={styles.historyIconContainer}>
-                <Ionicons name="document-text" size={20} color="#6366F1" />
-              </View>
-              <View style={styles.historyTextContainer}>
-                <Text style={styles.historyTitle}>{item.title}</Text>
-                <Text style={styles.historyMeta}>
-                  {item.date} • {item.duration}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          {Array.isArray(history) && history.length > 0 ? (
+            history.map((item) => (
+              <TouchableOpacity
+                key={item._id}
+                style={[
+                  styles.historyItem,
+                  recordingId === item._id && { backgroundColor: "#EEF2FF" },
+                ]}
+                onPress={() => handleSelectHistory(item._id)}
+              >
+                <View style={styles.historyIconContainer}>
+                  <Ionicons name="document-text" size={20} color="#6366F1" />
+                </View>
+                <View style={styles.historyTextContainer}>
+                  <Text style={styles.historyTitle} numberOfLines={1}>
+                    {item.name || "Unnamed Recording"}
+                  </Text>
+                  <Text style={styles.historyMeta}>
+                    {new Date(item.createdAt).toLocaleDateString()} • {item.duration || "0:00"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.statusText}>No recordings found.</Text>
+          )}
         </ScrollView>
       </Animated.View>
 
@@ -207,6 +340,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   topBarTitle: { fontSize: 18, fontWeight: "700", color: "#1F2937" },
   moreButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
@@ -261,10 +398,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
-    gap: 8,
+    paddingVertical: 14,
+    gap: 6,
   },
-  actionText: { color: "#FFF", fontSize: 15, fontWeight: "600" },
+  actionText: { color: "#FFF", fontSize: 13, fontWeight: "600" },
 
   /* 💬 Floating Chat */
   chatButton: {
@@ -275,7 +412,6 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     elevation: 6,
-    boxShadow: "0px 3px 8px rgba(0, 0, 0, 0.2)",
   },
   chatGradient: {
     flex: 1,
@@ -307,6 +443,7 @@ const styles = StyleSheet.create({
     width: width * 0.8,
     backgroundColor: "#FFF",
     elevation: 10,
+    zIndex: 1000,
   },
   sidebarHeader: {
     paddingTop: 50,
@@ -350,14 +487,14 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#ffffffff",
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
   },
   historyTextContainer: { flex: 1 },
   historyTitle: { fontSize: 15, fontWeight: "600", color: "#1F2937" },
-  historyMeta: { fontSize: 12, color: "#ffffffff" },
+  historyMeta: { fontSize: 12, color: "#6B7280" },
 
   sidebarOverlay: {
     position: "absolute",
@@ -366,5 +503,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: "rgba(32, 32, 32, 0.4)",
+    zIndex: 999,
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  statusText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  errorText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#EF4444",
+    textAlign: "center",
   },
 });
