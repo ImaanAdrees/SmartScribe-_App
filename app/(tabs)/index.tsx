@@ -225,7 +225,8 @@ const HomeScreen: React.FC = () => {
         return { success: false, error: 'No auth token' };
       }
       const form = new FormData();
-      const filename = uri.split('/').pop() || `recording-${Date.now()}.m4a`;
+      const rawFilename = uri.split('/').pop() || `recording-${Date.now()}`;
+      const filename = rawFilename.includes('.') ? rawFilename : `${rawFilename}.m4a`;
 
       // Normalize URI for native platforms - IMPORTANT: fetch on Android needs file:// prefix
       let normalizedUri = uri;
@@ -370,7 +371,30 @@ const HomeScreen: React.FC = () => {
         if (uri) {
           const durationStr = formatTime(elapsedTime);
           const uploadRes = await uploadRecording(uri, durationStr, recordingName || undefined);
-          if (!uploadRes || !uploadRes.success) {
+          if (uploadRes && uploadRes.success && uploadRes.recording) {
+            const recordingId = uploadRes.recording._id;
+
+            // Trigger transcription in the backend
+            try {
+              const token = await AsyncStorage.getItem('userToken');
+              fetch(`${API_URL}/api/recording/${recordingId}/transcribe`, {
+                method: 'POST',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }).catch(err => console.error('Background transcription trigger failed', err));
+
+              setShowRecordModal(false);
+              setRecordingName('');
+              router.push({
+                pathname: "/(tabs)/transcription",
+                params: { recordingId },
+              });
+              return; // Exit here as we handled navigation
+            } catch (transErr) {
+              console.error('Failed to trigger transcription', transErr);
+            }
+          } else {
             console.warn('Upload failed', uploadRes);
           }
         } else {
@@ -391,10 +415,7 @@ const HomeScreen: React.FC = () => {
 
       setShowRecordModal(false);
       setRecordingName('');
-      router.push({
-        pathname: "/(tabs)/transcription",
-        params: { duration: formatTime(elapsedTime) },
-      });
+      router.push("/(tabs)/transcription");
     })();
   };
 
