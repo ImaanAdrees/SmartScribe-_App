@@ -14,8 +14,127 @@ const getAuthHeaders = async () => {
 // Auth APIs
 export const authAPI = {
   onStatusChange: (status) => {}, // Callback to notify root layout of auth changes
+
+  sendSignupOtp: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/signup/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send OTP');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  resendSignupOtp: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/signup/resend-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to resend OTP');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  verifySignupOtp: async (email, otp) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/signup/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, otp }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to verify OTP');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  requestPasswordReset: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, channel: 'app' }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (_parseError) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          status: response.status,
+          error: data?.message || `Request failed (${response.status})`,
+        };
+      }
+
+      return { success: true, data, status: response.status };
+    } catch (error) {
+      return { success: false, status: 0, error: error.message };
+    }
+  },
+
+  resetPasswordWithToken: async (token, password, confirmPassword) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password/reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password, confirmPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to reset password');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
   
-  signup: async (name, email, password, role) => {
+  signup: async (name, email, password, role, phone, organization, city, country) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/signup`, {
         method: 'POST',
@@ -27,6 +146,10 @@ export const authAPI = {
           email,
           password,
           role: role.toLowerCase(), // Backend expects lowercase
+          phone,
+          organization,
+          city,
+          country,
         }),
       });
 
@@ -44,6 +167,10 @@ export const authAPI = {
           name: data.name,
           email: data.email,
           role: data.role,
+          phone: data.phone || null,
+          organization: data.organization || null,
+          city: data.city || null,
+          country: data.country || null,
           image: data.image || null,
         }));
         await AsyncStorage.setItem('userId', data._id);

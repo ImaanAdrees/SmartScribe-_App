@@ -13,33 +13,42 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { authAPI } from "../../utils/api";
-import API_URL from "../../utils/api";
+import API_URL, { authAPI } from "../../utils/api";
 import { showToast } from "../../utils/ToastHelper";
 import { disconnectSocket } from "../../utils/socket";
 import { logProfileUpdated, logLogout } from "../../utils/activityLogger";
 
 // Helper to construct full image URL
 const getImageUrl = (imagePath: string | null) => {
-  if (!imagePath) return null;
+  if (!imagePath) return undefined;
   if (imagePath.startsWith('http')) return imagePath;
   return `${API_URL}${imagePath}`;
 };
 
 const ProfileScreen = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState("Guest");
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState("Student");
+  const [userPhone, setUserPhone] = useState("");
+  const [userOrganization, setUserOrganization] = useState("");
+  const [userCity, setUserCity] = useState("");
+  const [userCountry, setUserCountry] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [tempName, setTempName] = useState("");
+  const [tempPhone, setTempPhone] = useState("");
+  const [tempOrganization, setTempOrganization] = useState("");
+  const [tempCity, setTempCity] = useState("");
+  const [tempCountry, setTempCountry] = useState("");
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -62,7 +71,15 @@ const ProfileScreen = () => {
           setUserName(parsedData.name || "Guest");
           setUserEmail(parsedData.email || "");
           setUserRole(parsedData.role || "Student");
+          setUserPhone(parsedData.phone || "");
+          setUserOrganization(parsedData.organization || "");
+          setUserCity(parsedData.city || "");
+          setUserCountry(parsedData.country || "");
           setTempName(parsedData.name || "Guest");
+          setTempPhone(parsedData.phone || "");
+          setTempOrganization(parsedData.organization || "");
+          setTempCity(parsedData.city || "");
+          setTempCountry(parsedData.country || "");
 
           if (parsedData.image) {
             setProfileImage(parsedData.image);
@@ -87,7 +104,15 @@ const ProfileScreen = () => {
             setUserName(parsedData.name || "Guest");
             setUserEmail(parsedData.email || "");
             setUserRole(parsedData.role || "Student");
+            setUserPhone(parsedData.phone || "");
+            setUserOrganization(parsedData.organization || "");
+            setUserCity(parsedData.city || "");
+            setUserCountry(parsedData.country || "");
             setTempName(parsedData.name || "Guest");
+            setTempPhone(parsedData.phone || "");
+            setTempOrganization(parsedData.organization || "");
+            setTempCity(parsedData.city || "");
+            setTempCountry(parsedData.country || "");
 
             if (parsedData.image) {
               setProfileImage(parsedData.image);
@@ -102,7 +127,7 @@ const ProfileScreen = () => {
     }, [])
   );
 
-  const handleSaveName = async () => {
+  const handleSaveProfile = async () => {
     if (!tempName.trim()) {
       showToast("error", "Name Required", "Please enter a name");
       return;
@@ -110,27 +135,52 @@ const ProfileScreen = () => {
 
     setLoading(true);
     try {
-      const response = await authAPI.updateProfile({ name: tempName });
+      const response = await authAPI.updateProfile({
+        name: tempName,
+        phone: tempPhone,
+        organization: tempOrganization,
+        city: tempCity,
+        country: tempCountry,
+      });
       if (response.success) {
         setUserName(tempName);
+        setUserPhone(tempPhone);
+        setUserOrganization(tempOrganization);
+        setUserCity(tempCity);
+        setUserCountry(tempCountry);
+
+        const storedUserData = await AsyncStorage.getItem("userData");
+        const parsedStoredUserData = storedUserData ? JSON.parse(storedUserData) : {};
+
         await AsyncStorage.setItem(
           "userData",
           JSON.stringify({
+            ...parsedStoredUserData,
             name: tempName,
             email: userEmail,
             role: userRole,
+            phone: tempPhone,
+            organization: tempOrganization,
+            city: tempCity,
+            country: tempCountry,
           })
         );
 
         // Log profile update activity
-        await logProfileUpdated({ field: "name", newValue: tempName });
+        await logProfileUpdated({
+          name: tempName,
+          phone: tempPhone,
+          organization: tempOrganization,
+          city: tempCity,
+          country: tempCountry,
+        });
 
-        showToast("success", "Success", "Profile name updated!");
+        showToast("success", "Success", "Profile updated!");
         setShowEditModal(false);
       } else {
         showToast("error", "Update Failed", response.error || "Please try again");
       }
-    } catch (error) {
+    } catch {
       showToast("error", "Error", "Failed to update profile");
     } finally {
       setLoading(false);
@@ -174,7 +224,7 @@ const ProfileScreen = () => {
       } else {
         showToast("error", "Error", response.error || "Failed to change password");
       }
-    } catch (error) {
+    } catch {
       showToast("error", "Error", "Failed to change password");
     } finally {
       setLoading(false);
@@ -365,8 +415,14 @@ const ProfileScreen = () => {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
-        pointerEvents="box-none"
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingBottom: 180 + insets.bottom },
+        ]}
+        scrollEnabled={false}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
+        overScrollMode="always"
       >
         {/* Profile Card */}
         <View style={styles.profileCard}>
@@ -403,6 +459,10 @@ const ProfileScreen = () => {
                 style={styles.editButton}
                 onPress={() => {
                   setTempName(userName);
+                  setTempPhone(userPhone);
+                  setTempOrganization(userOrganization);
+                  setTempCity(userCity);
+                  setTempCountry(userCountry);
                   setShowEditModal(true);
                 }}
               >
@@ -416,10 +476,31 @@ const ProfileScreen = () => {
               <Text style={styles.userEmail}>{userEmail}</Text>
             </View>
 
-            {/* Role */}
-            <View style={styles.roleContainer}>
-              <Ionicons name="person-outline" size={16} color="#E5E7EB" />
-              <Text style={styles.userRole}>{userRole}</Text>
+            <View style={styles.infoGrid}>
+              <View style={styles.infoItem}>
+                <Ionicons name="person-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userRole}</Text>
+              </View>
+
+              <View style={styles.infoItem}>
+                <Ionicons name="call-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userPhone || "No phone"}</Text>
+              </View>
+
+              <View style={styles.infoItem}>
+                <Ionicons name="business-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userOrganization || "No organization"}</Text>
+              </View>
+
+              <View style={styles.infoItem}>
+                <Ionicons name="location-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userCity || "No city"}</Text>
+              </View>
+
+              <View style={[styles.infoItem, styles.infoItemCentered]}>
+                <Ionicons name="earth-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userCountry || "No country"}</Text>
+              </View>
             </View>
           </LinearGradient>
         </View>
@@ -513,12 +594,12 @@ const ProfileScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Edit Name Modal */}
+      {/* Edit Profile Modal */}
       <Modal visible={showEditModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Name</Text>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
               <Pressable onPress={() => setShowEditModal(false)}>
                 <Ionicons name="close" size={24} color="#6B7280" />
               </Pressable>
@@ -531,6 +612,39 @@ const ProfileScreen = () => {
               placeholderTextColor="#9CA3AF"
               editable={!loading}
             />
+            <TextInput
+              style={styles.input}
+              value={tempPhone}
+              onChangeText={setTempPhone}
+              placeholder="Enter your phone"
+              placeholderTextColor="#9CA3AF"
+              keyboardType="phone-pad"
+              editable={!loading}
+            />
+            <TextInput
+              style={styles.input}
+              value={tempOrganization}
+              onChangeText={setTempOrganization}
+              placeholder="Enter your organization"
+              placeholderTextColor="#9CA3AF"
+              editable={!loading}
+            />
+            <TextInput
+              style={styles.input}
+              value={tempCity}
+              onChangeText={setTempCity}
+              placeholder="Enter your city"
+              placeholderTextColor="#9CA3AF"
+              editable={!loading}
+            />
+            <TextInput
+              style={styles.input}
+              value={tempCountry}
+              onChangeText={setTempCountry}
+              placeholder="Enter your country"
+              placeholderTextColor="#9CA3AF"
+              editable={!loading}
+            />
             <View style={styles.modalButtons}>
               <Pressable
                 style={styles.cancelButton}
@@ -540,7 +654,7 @@ const ProfileScreen = () => {
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </Pressable>
 
-              <Pressable style={styles.saveButton} onPress={handleSaveName} disabled={loading}>
+              <Pressable style={styles.saveButton} onPress={handleSaveProfile} disabled={loading}>
                 <LinearGradient
                   colors={["#6366F1", "#8B5CF6"]}
                   style={styles.saveGradient}
@@ -775,7 +889,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#1F2937" },
   placeholder: { width: 40 },
   content: { flex: 1, paddingHorizontal: 20 },
-  contentContainer: { paddingTop: 20, paddingBottom: 40, alignItems: "center" },
+  contentContainer: { paddingTop: 20, alignItems: "center" },
   profileCard: {
     width: "100%",
     marginBottom: 32,
@@ -815,8 +929,30 @@ const styles = StyleSheet.create({
   editButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255, 255, 255, 0.2)", alignItems: "center", justifyContent: "center" },
   emailContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12, marginBottom: 8 },
   userEmail: { fontSize: 15, color: "#E5E7EB", fontWeight: "500" },
-  roleContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12 },
+  infoGrid: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  infoItem: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  infoItemCentered: {
+    marginLeft: "26%",
+  },
+  roleContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12, marginTop: 8 },
   userRole: { fontSize: 15, color: "#E5E7EB", fontWeight: "500" },
+  userRoleText: { fontSize: 15, color: "#E5E7EB", fontWeight: "500", flexShrink: 1 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0, 0, 0, 0.5)", alignItems: "center", justifyContent: "center", padding: 20 },
   modalCard: { backgroundColor: "#FFFFFF", borderRadius: 20, padding: 24, width: "100%", elevation: 10, boxShadow: "0px 6px 12px rgba(0, 0, 0, 0.3)" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },

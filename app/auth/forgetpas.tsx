@@ -5,68 +5,72 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { authAPI } from "../../utils/api";
+import { showToast } from "../../utils/ToastHelper";
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleResetPassword = () => {
+  const validateEmail = (value: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value);
+  };
+
+  const handleResetPassword = async () => {
     if (!email) {
       Alert.alert("Error", "Please enter your email address");
       return;
     }
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!validateEmail(email)) {
       Alert.alert("Error", "Please enter a valid email address");
       return;
     }
 
-    // Simulate sending reset email
-    setTimeout(() => {
-      setEmailSent(true);
-    }, 1000);
+    setLoading(true);
+    try {
+      const result = await authAPI.requestPasswordReset(email);
+      if (!result.success) {
+        const errorMessage = (result.error || "").toLowerCase();
+        if (
+          result.status === 404 ||
+          errorMessage.includes("email does not exist") ||
+          errorMessage.includes("not found")
+        ) {
+          Alert.alert("Invalid Email", "Email does not exist");
+          showToast("error", "Invalid Email", "Email does not exist");
+        } else if (
+          result.status === 0 ||
+          errorMessage.includes("fail to fetch") ||
+          errorMessage.includes("failed to fetch")
+        ) {
+          Alert.alert("Server Error", "Unable to reach backend. Please try again.");
+          showToast("error", "Server Error", "Unable to reach backend. Please try again.");
+        } else {
+          Alert.alert("Error", result.error || "Failed to send reset email");
+          showToast("error", "Error", result.error || "Failed to send reset email");
+        }
+        return;
+      }
+
+      const token = result?.data?.token;
+      if (!token) {
+        Alert.alert("Error", "Unable to continue reset flow");
+        showToast("error", "Error", "Unable to continue reset flow");
+        return;
+      }
+
+      router.replace(`/auth/updatepass?token=${encodeURIComponent(token)}`);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  if (emailSent) {
-    return (
-      <View style={forgotStyles.container}>
-        <View style={forgotStyles.successContainer}>
-          <View style={forgotStyles.successIconContainer}>
-            <Ionicons name="checkmark-circle" size={80} color="#10B981" />
-          </View>
-
-          <Text style={forgotStyles.successTitle}>Email Sent! 📧</Text>
-          <Text style={forgotStyles.successSubtitle}>
-            We've sent a password reset link to
-          </Text>
-          <Text style={forgotStyles.emailText}>{email}</Text>
-          <Text style={forgotStyles.successDescription}>
-            Please check your inbox and click on the link to reset your password.
-          </Text>
-
-          <TouchableOpacity
-            style={forgotStyles.button}
-            onPress={() => router.push("/auth/login")}
-          >
-            <Text style={forgotStyles.buttonText}>Back to Login</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={forgotStyles.resendButton}
-            onPress={() => setEmailSent(false)}
-          >
-            <Text style={forgotStyles.resendText}>Didn't receive email? Resend</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={forgotStyles.container}>
@@ -83,7 +87,7 @@ export default function ForgotPasswordScreen() {
 
       <Text style={forgotStyles.title}>Forgot Password? 🔐</Text>
       <Text style={forgotStyles.subtitle}>
-        No worries! Enter your email address and we'll send you a link to reset your password.
+        No worries! Enter your email address to continue password reset.
       </Text>
 
       <View style={forgotStyles.inputContainer}>
@@ -101,8 +105,13 @@ export default function ForgotPasswordScreen() {
       <TouchableOpacity
         style={forgotStyles.button}
         onPress={handleResetPassword}
+        disabled={loading}
       >
-        <Text style={forgotStyles.buttonText}>Send Reset Link</Text>
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={forgotStyles.buttonText}>Continue</Text>
+        )}
       </TouchableOpacity>
 
       <View style={forgotStyles.loginContainer}>
@@ -198,48 +207,5 @@ const forgotStyles = StyleSheet.create({
     color: "#4F46E5",
     fontSize: 14,
     fontWeight: "700",
-  },
-  successContainer: {
-    alignItems: "center",
-  },
-  successIconContainer: {
-    marginBottom: 20,
-  },
-  successTitle: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#1E3A8A",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  successSubtitle: {
-    fontSize: 15,
-    color: "#6B7280",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  emailText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#4F46E5",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  successDescription: {
-    fontSize: 14,
-    color: "#6B7280",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 30,
-    paddingHorizontal: 20,
-  },
-  resendButton: {
-    marginTop: 12,
-    padding: 8,
-  },
-  resendText: {
-    color: "#4F46E5",
-    fontSize: 14,
-    fontWeight: "600",
   },
 });

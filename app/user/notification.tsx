@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Platform, StatusBar } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotifications } from '../../context/NotificationContext';
-import { showToast } from '../../utils/ToastHelper';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export default function NotificationsScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { notifications, isLoading, markAsRead, deleteNotification, fetchNotifications } = useNotifications();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -132,15 +130,15 @@ export default function NotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Back Button */}
-      {/* <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.back()}
-      >
-        <Ionicons name="arrow-back" size={24} color="#4F46E5" />
-      </TouchableOpacity> */}
+      <View style={[styles.headerRow, { paddingTop: insets.top + 8 }]}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color="#4F46E5" />
+        </Pressable>
+        <Text style={styles.headerTitle}>Notifications</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-      <Text style={styles.header}>Notifications</Text>
+      {/* <Text style={styles.header}>Notifications</Text> */}
 
       {isLoading ? (
         <View style={styles.center}>
@@ -157,7 +155,7 @@ export default function NotificationsScreen() {
           data={notifications}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 24 }}
+          contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 16 }}
         />
       )}
 
@@ -177,7 +175,7 @@ export default function NotificationsScreen() {
               <Text style={styles.modalTitle}>Delete Notification</Text>
             </View>
             <Text style={styles.modalMessage}>
-              Are you sure you want to delete "{itemToDelete?.title}"? This action cannot be undone.
+              {`Are you sure you want to delete "${itemToDelete?.title}"? This action cannot be undone.`}
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -203,11 +201,13 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    padding: 16, 
-    backgroundColor: '#fff',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ? StatusBar.currentHeight + 12 : 24) : 16,
+  container: { flex: 1, backgroundColor: '#fff' },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 15,
   },
   backButton: {
     width: 40,
@@ -220,7 +220,8 @@ const styles = StyleSheet.create({
     elevation: 2,
     boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
   },
-  header: { fontSize: 24, fontWeight: '700', marginBottom: 16, color: '#1a1a1a' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  placeholder: { width: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   item: {
     flexDirection: 'row',
