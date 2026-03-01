@@ -1,5 +1,6 @@
 
 import React, { useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
   Text,
@@ -12,6 +13,8 @@ import { Link, router } from "expo-router";
 import { authAPI } from "../../utils/api";
 import { showToast } from "../../utils/ToastHelper";
 import { Ionicons } from "@expo/vector-icons";
+
+const PENDING_SIGNUP_KEY = "pendingSignupData";
 
 export default function SignupScreen() {
   const [name, setName] = useState("");
@@ -96,7 +99,7 @@ export default function SignupScreen() {
     setLoading(true);
 
     try {
-      const result = await authAPI.signup(
+      const pendingSignupData = {
         name,
         email,
         password,
@@ -104,14 +107,21 @@ export default function SignupScreen() {
         phone,
         organization,
         city,
-        country
+        country,
+      };
+
+      await AsyncStorage.setItem(
+        PENDING_SIGNUP_KEY,
+        JSON.stringify(pendingSignupData)
       );
 
+      const result = await authAPI.sendSignupOtp(email);
+
       if (result.success) {
-        showToast("success", "Account created 🎉", "Welcome to SmartScribe");
-        router.replace("/(tabs)");
+        showToast("success", "OTP sent", "Check your email for verification code");
+        router.push("/auth/signup-otp");
       } else {
-        showToast("error", "Signup failed", result.error);
+        showToast("error", "Failed", result.error);
       }
     } catch {
       showToast("error", "Error", "Unexpected error");

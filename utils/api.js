@@ -14,6 +14,72 @@ const getAuthHeaders = async () => {
 // Auth APIs
 export const authAPI = {
   onStatusChange: (status) => {}, // Callback to notify root layout of auth changes
+
+  sendSignupOtp: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/signup/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send OTP');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  resendSignupOtp: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/signup/resend-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to resend OTP');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  verifySignupOtp: async (email, otp) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/signup/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, otp }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to verify OTP');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
   
   signup: async (name, email, password, role, phone, organization, city, country) => {
     try {
