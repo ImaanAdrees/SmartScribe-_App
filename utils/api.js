@@ -80,6 +80,59 @@ export const authAPI = {
       return { success: false, error: error.message };
     }
   },
+
+  requestPasswordReset: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password/request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, channel: 'app' }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (_parseError) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          status: response.status,
+          error: data?.message || `Request failed (${response.status})`,
+        };
+      }
+
+      return { success: true, data, status: response.status };
+    } catch (error) {
+      return { success: false, status: 0, error: error.message };
+    }
+  },
+
+  resetPasswordWithToken: async (token, password, confirmPassword) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password/reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token, password, confirmPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to reset password');
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
   
   signup: async (name, email, password, role, phone, organization, city, country) => {
     try {
