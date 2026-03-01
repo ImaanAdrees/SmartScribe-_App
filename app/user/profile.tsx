@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -32,6 +33,7 @@ const getImageUrl = (imagePath: string | null) => {
 
 const ProfileScreen = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [userName, setUserName] = useState("Guest");
   const [userEmail, setUserEmail] = useState("");
   const [userRole, setUserRole] = useState("Student");
@@ -413,8 +415,14 @@ const ProfileScreen = () => {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}
-        pointerEvents="box-none"
+        contentContainerStyle={[
+          styles.contentContainer,
+          { paddingBottom: 180 + insets.bottom },
+        ]}
+        scrollEnabled={false}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
+        overScrollMode="always"
       >
         {/* Profile Card */}
         <View style={styles.profileCard}>
@@ -468,30 +476,31 @@ const ProfileScreen = () => {
               <Text style={styles.userEmail}>{userEmail}</Text>
             </View>
 
-            {/* Role */}
-            <View style={styles.roleContainer}>
-              <Ionicons name="person-outline" size={16} color="#E5E7EB" />
-              <Text style={styles.userRoleText}>{userRole}</Text>
-            </View>
+            <View style={styles.infoGrid}>
+              <View style={styles.infoItem}>
+                <Ionicons name="person-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userRole}</Text>
+              </View>
 
-            <View style={styles.roleContainer}>
-              <Ionicons name="call-outline" size={16} color="#E5E7EB" />
-              <Text style={styles.userRoleText}>{userPhone || "No phone"}</Text>
-            </View>
+              <View style={styles.infoItem}>
+                <Ionicons name="call-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userPhone || "No phone"}</Text>
+              </View>
 
-            <View style={styles.roleContainer}>
-              <Ionicons name="business-outline" size={16} color="#E5E7EB" />
-              <Text style={styles.userRoleText}>{userOrganization || "No organization"}</Text>
-            </View>
+              <View style={styles.infoItem}>
+                <Ionicons name="business-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userOrganization || "No organization"}</Text>
+              </View>
 
-            <View style={styles.roleContainer}>
-              <Ionicons name="location-outline" size={16} color="#E5E7EB" />
-              <Text style={styles.userRoleText}>{userCity || "No city"}</Text>
-            </View>
+              <View style={styles.infoItem}>
+                <Ionicons name="location-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userCity || "No city"}</Text>
+              </View>
 
-            <View style={styles.roleContainer}>
-              <Ionicons name="earth-outline" size={16} color="#E5E7EB" />
-              <Text style={styles.userRoleText}>{userCountry || "No country"}</Text>
+              <View style={[styles.infoItem, styles.infoItemCentered]}>
+                <Ionicons name="earth-outline" size={16} color="#E5E7EB" />
+                <Text style={styles.userRoleText}>{userCountry || "No country"}</Text>
+              </View>
             </View>
           </LinearGradient>
         </View>
@@ -880,7 +889,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700", color: "#1F2937" },
   placeholder: { width: 40 },
   content: { flex: 1, paddingHorizontal: 20 },
-  contentContainer: { paddingTop: 20, paddingBottom: 40, alignItems: "center" },
+  contentContainer: { paddingTop: 20, alignItems: "center" },
   profileCard: {
     width: "100%",
     marginBottom: 32,
@@ -920,6 +929,27 @@ const styles = StyleSheet.create({
   editButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255, 255, 255, 0.2)", alignItems: "center", justifyContent: "center" },
   emailContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12, marginBottom: 8 },
   userEmail: { fontSize: 15, color: "#E5E7EB", fontWeight: "500" },
+  infoGrid: {
+    width: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  infoItem: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  infoItemCentered: {
+    marginLeft: "26%",
+  },
   roleContainer: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 10, backgroundColor: "rgba(255, 255, 255, 0.15)", borderRadius: 12, marginTop: 8 },
   userRole: { fontSize: 15, color: "#E5E7EB", fontWeight: "500" },
   userRoleText: { fontSize: 15, color: "#E5E7EB", fontWeight: "500", flexShrink: 1 },
