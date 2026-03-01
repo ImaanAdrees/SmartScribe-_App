@@ -15,7 +15,7 @@ const getAuthHeaders = async () => {
 export const authAPI = {
   onStatusChange: (status) => {}, // Callback to notify root layout of auth changes
   
-  signup: async (name, email, password, role) => {
+  signup: async (name, email, password, role, phone, organization, city, country) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/signup`, {
         method: 'POST',
@@ -27,6 +27,10 @@ export const authAPI = {
           email,
           password,
           role: role.toLowerCase(), // Backend expects lowercase
+          phone,
+          organization,
+          city,
+          country,
         }),
       });
 
@@ -44,6 +48,10 @@ export const authAPI = {
           name: data.name,
           email: data.email,
           role: data.role,
+          phone: data.phone || null,
+          organization: data.organization || null,
+          city: data.city || null,
+          country: data.country || null,
           image: data.image || null,
         }));
         await AsyncStorage.setItem('userId', data._id);
