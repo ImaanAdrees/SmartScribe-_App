@@ -6,6 +6,7 @@ import SplashScreen from "./SplashScreen";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authAPI } from "../utils/api";
+import { showToast } from "../utils/ToastHelper";
 import API_URL from "../utils/api";
 import { initializeSocket, joinNotificationRoom, disconnectSocket, getSocket } from "../utils/socket";
 import { NotificationProvider } from "../context/NotificationContext";
@@ -247,6 +248,15 @@ export default function RootLayout() {
 
     let isMounted = true;
 
+    const forceSessionLogout = async () => {
+      await AsyncStorage.multiRemove(["userToken", "userData", "userId"]);
+      await AsyncStorage.removeItem("accountDisabled");
+      disconnectSocket();
+      setIsLoggedIn(false);
+      setIsAccountDisabled(false);
+      authAPI.onStatusChange(false);
+    };
+
     const forceDisabledLogout = async () => {
       await AsyncStorage.multiRemove(["userToken", "userData", "userId"]);
       await AsyncStorage.setItem("accountDisabled", "1");
@@ -264,6 +274,14 @@ export default function RootLayout() {
 
         if (result.code === "ACCOUNT_DISABLED") {
           await forceDisabledLogout();
+          return;
+        }
+
+        if (
+          result.status === 401 ||
+          String(result.error || "").toLowerCase().includes("user not found")
+        ) {
+          await forceSessionLogout();
         }
       } catch (error) {
         console.error("[RootLayout] Failed to verify user active status:", error);
@@ -283,11 +301,17 @@ export default function RootLayout() {
       }
     };
 
+    const handleAccountDeleted = async () => {
+      showToast("error", "Account Deleted", "Your account was deleted by admin.");
+      await forceSessionLogout();
+    };
+
     const setupDisableListener = async () => {
       socketInstance = await getSocket();
       if (!isMounted || !socketInstance) return;
       socketInstance.on("user_list_updated", handleUserListUpdated);
       socketInstance.on("account_status_changed", handleAccountStatusChanged);
+      socketInstance.on("account_deleted", handleAccountDeleted);
     };
 
     verifyCurrentUserStatus();
@@ -299,6 +323,7 @@ export default function RootLayout() {
       if (socketInstance) {
         socketInstance.off("user_list_updated", handleUserListUpdated);
         socketInstance.off("account_status_changed", handleAccountStatusChanged);
+        socketInstance.off("account_deleted", handleAccountDeleted);
       }
     };
   }, [isLoading, isLoggedIn]);
