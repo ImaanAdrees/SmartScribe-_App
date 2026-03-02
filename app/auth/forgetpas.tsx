@@ -35,7 +35,8 @@ export default function ForgotPasswordScreen() {
 
     setLoading(true);
     try {
-      const result = await authAPI.requestPasswordReset(email);
+      const normalizedEmail = email.trim().toLowerCase();
+      const result = await authAPI.sendForgotPasswordOtp(normalizedEmail);
       if (!result.success) {
         const errorMessage = (result.error || "").toLowerCase();
         if (
@@ -59,14 +60,8 @@ export default function ForgotPasswordScreen() {
         return;
       }
 
-      const token = result?.data?.token;
-      if (!token) {
-        Alert.alert("Error", "Unable to continue reset flow");
-        showToast("error", "Error", "Unable to continue reset flow");
-        return;
-      }
-
-      router.replace(`/auth/updatepass?token=${encodeURIComponent(token)}`);
+      showToast("success", "OTP Sent", "Please check your email for OTP");
+      router.replace((`/auth/forgot-otp?email=${encodeURIComponent(normalizedEmail)}` as any));
     } finally {
       setLoading(false);
     }

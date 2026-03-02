@@ -81,6 +81,99 @@ export const authAPI = {
     }
   },
 
+  sendForgotPasswordOtp: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password/send-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (_parseError) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          status: response.status,
+          error: data?.message || `Request failed (${response.status})`,
+        };
+      }
+
+      return { success: true, data, status: response.status };
+    } catch (error) {
+      return { success: false, status: 0, error: error.message };
+    }
+  },
+
+  resendForgotPasswordOtp: async (email) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password/resend-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (_parseError) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          status: response.status,
+          error: data?.message || `Request failed (${response.status})`,
+        };
+      }
+
+      return { success: true, data, status: response.status };
+    } catch (error) {
+      return { success: false, status: 0, error: error.message };
+    }
+  },
+
+  verifyForgotPasswordOtp: async (email, otp) => {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/forgot-password/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, otp }),
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (_parseError) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          status: response.status,
+          error: data?.message || `Request failed (${response.status})`,
+        };
+      }
+
+      return { success: true, data, status: response.status };
+    } catch (error) {
+      return { success: false, status: 0, error: error.message };
+    }
+  },
+
   requestPasswordReset: async (email) => {
     try {
       const response = await fetch(`${API_URL}/api/auth/forgot-password/request`, {
@@ -197,7 +290,16 @@ export const authAPI = {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        const message = data?.message || 'Login failed';
+        const isDisabledAccount =
+          response.status === 403 && message.toLowerCase().includes('disabled');
+
+        return {
+          success: false,
+          error: message,
+          code: isDisabledAccount ? 'ACCOUNT_DISABLED' : undefined,
+          status: response.status,
+        };
       }
 
       // Store token and user data
@@ -216,6 +318,24 @@ export const authAPI = {
         });
         
         const profileData = await profileResponse.json();
+
+        if (!profileResponse.ok) {
+          const message = profileData?.message || 'Failed to fetch profile';
+
+          if (
+            profileResponse.status === 403 &&
+            String(message).toLowerCase().includes('disabled')
+          ) {
+            await AsyncStorage.multiRemove(['userToken', 'userData', 'userId']);
+            if (authAPI.onStatusChange) authAPI.onStatusChange(false);
+            return {
+              success: false,
+              error: message,
+              code: 'ACCOUNT_DISABLED',
+              status: profileResponse.status,
+            };
+          }
+        }
         
         console.log('[authAPI] Profile data received:', profileData);
         
@@ -224,6 +344,11 @@ export const authAPI = {
           name: profileData._id ? profileData.name : data.name || email.split('@')[0],
           email: profileData._id ? profileData.email : email,
           role: profileData._id ? profileData.role : 'Student',
+          phone: profileData._id ? (profileData.phone || null) : null,
+          organization: profileData._id ? (profileData.organization || null) : null,
+          city: profileData._id ? (profileData.city || null) : null,
+          country: profileData._id ? (profileData.country || null) : null,
+          isDisabled: profileData._id ? !!profileData.isDisabled : false,
           isAdmin: data.isAdmin,
           image: profileData.image || null,
         }));
@@ -235,6 +360,39 @@ export const authAPI = {
       return { success: true, data };
     } catch (error) {
       return { success: false, error: error.message };
+    }
+  },
+
+  validateActiveUser: async () => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/users/profile`, {
+        method: 'GET',
+        headers,
+      });
+
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (_parseError) {
+        data = null;
+      }
+
+      if (!response.ok) {
+        return {
+          success: false,
+          status: response.status,
+          error: data?.message || `Request failed (${response.status})`,
+          code:
+            response.status === 403 && (data?.message || '').toLowerCase().includes('disabled')
+              ? 'ACCOUNT_DISABLED'
+              : undefined,
+        };
+      }
+
+      return { success: true, status: response.status, data };
+    } catch (error) {
+      return { success: false, status: 0, error: error.message };
     }
   },
 

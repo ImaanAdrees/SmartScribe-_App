@@ -37,6 +37,8 @@ export default function LoginScreen() {
       const result = await authAPI.login(email, password);
 
       if (result.success) {
+        await AsyncStorage.removeItem("accountDisabled");
+
         // Log login activity
         await logLogin();
 
@@ -44,6 +46,13 @@ export default function LoginScreen() {
         // Socket connection and redirection are now handled centrally 
         // by RootLayout reacting to the auth status change.
       } else {
+        if (result.code === "ACCOUNT_DISABLED") {
+          await AsyncStorage.setItem("accountDisabled", "1");
+          showToast("error", "Account Disabled", result.error || "Your account is disabled.");
+          router.replace("/account-disabled" as any);
+          return;
+        }
+
         showToast("error", "Login Failed", result.error || "Invalid credentials.");
       }
     } catch (_error) {
