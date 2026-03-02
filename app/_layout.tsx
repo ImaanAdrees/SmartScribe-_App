@@ -13,6 +13,7 @@ import { NotificationProvider } from "../context/NotificationContext";
 export default function RootLayout() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAccountDisabled, setIsAccountDisabled] = useState(false);
   const [isMaintenance, setIsMaintenance] = useState(false);
   const [maintenanceCountdown, setMaintenanceCountdown] = useState<number | null>(null);
   const router = useRouter();
@@ -21,10 +22,44 @@ export default function RootLayout() {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        const disabledFlag = await AsyncStorage.getItem("accountDisabled");
+        if (disabledFlag === "1") {
+          setIsLoggedIn(false);
+          setIsAccountDisabled(true);
+          return;
+        }
+
         const token = await AsyncStorage.getItem("userToken");
-        setIsLoggedIn(!!token);
+
+        if (!token) {
+          setIsLoggedIn(false);
+          setIsAccountDisabled(false);
+          return;
+        }
+
+        const result = await authAPI.validateActiveUser();
+
+        if (result.success) {
+          await AsyncStorage.removeItem("accountDisabled");
+          setIsLoggedIn(true);
+          setIsAccountDisabled(false);
+          return;
+        }
+
+        if (result.code === "ACCOUNT_DISABLED") {
+          await AsyncStorage.multiRemove(["userToken", "userData", "userId"]);
+          await AsyncStorage.setItem("accountDisabled", "1");
+          setIsLoggedIn(false);
+          setIsAccountDisabled(true);
+          return;
+        }
+
+        setIsLoggedIn(false);
+        setIsAccountDisabled(false);
       } catch (error) {
         console.error("[RootLayout] Error checking auth status:", error);
+        setIsLoggedIn(false);
+        setIsAccountDisabled(false);
       } finally {
         // Wait a bit to show splash screen
         setTimeout(() => setIsLoading(false), 2000);
@@ -35,6 +70,10 @@ export default function RootLayout() {
     authAPI.onStatusChange = (status: boolean) => {
       console.log("[RootLayout] Auth status changed:", status);
       setIsLoggedIn(status);
+      if (status) {
+        setIsAccountDisabled(false);
+        AsyncStorage.removeItem("accountDisabled");
+      }
     };
 
     checkAuthStatus();
@@ -127,6 +166,8 @@ export default function RootLayout() {
 
     const inAuthGroup = segments[0] === "auth";
     const inProtectedGroup = segments[0] === "(tabs)" || segments[0] === "user" || segments[0] === "meeting";
+    const inDisabledScreen = segments[0] === "account-disabled";
+    const inLoginScreen = segments[0] === "auth" && segments[1] === "login";
 
     console.log("[RootLayout] Auth Sync - Path:", segments.join("/"), "| isLoggedIn:", isLoggedIn, "| isMaintenance:", isMaintenance);
 
@@ -146,6 +187,16 @@ export default function RootLayout() {
       return;
     }
 
+    if (isAccountDisabled) {
+      if (!inDisabledScreen && !inLoginScreen) {
+        router.replace("/account-disabled" as any);
+      }
+      return;
+    } else if (inDisabledScreen) {
+      router.replace(isLoggedIn ? "/(tabs)" : "/auth/login");
+      return;
+    }
+
     if (!isLoggedIn && inProtectedGroup) {
       console.log("[RootLayout] Unauthorized access attempt, redirecting to /auth/login");
       router.replace("/auth/login");
@@ -153,7 +204,7 @@ export default function RootLayout() {
       console.log("[RootLayout] Logged in user in auth screen, redirecting to /(tabs)");
       router.replace("/(tabs)");
     }
-  }, [isLoading, isLoggedIn, segments, isMaintenance]);
+  }, [isLoading, isLoggedIn, isAccountDisabled, segments, isMaintenance]);
 
   useEffect(() => {
     if (isLoggedIn) {
@@ -191,6 +242,67 @@ export default function RootLayout() {
     }
   }, [isLoggedIn, isLoading]);
 
+  useEffect(() => {
+    if (isLoading || !isLoggedIn) return;
+
+    let isMounted = true;
+
+    const forceDisabledLogout = async () => {
+      await AsyncStorage.multiRemove(["userToken", "userData", "userId"]);
+      await AsyncStorage.setItem("accountDisabled", "1");
+      disconnectSocket();
+      setIsLoggedIn(false);
+      setIsAccountDisabled(true);
+      authAPI.onStatusChange(false);
+    };
+
+    const verifyCurrentUserStatus = async () => {
+      try {
+        const result = await authAPI.validateActiveUser();
+
+        if (!isMounted) return;
+
+        if (result.code === "ACCOUNT_DISABLED") {
+          await forceDisabledLogout();
+        }
+      } catch (error) {
+        console.error("[RootLayout] Failed to verify user active status:", error);
+      }
+    };
+
+    const intervalId = setInterval(verifyCurrentUserStatus, 8000);
+
+    let socketInstance: any = null;
+    const handleUserListUpdated = () => {
+      verifyCurrentUserStatus();
+    };
+
+    const handleAccountStatusChanged = async (payload: any) => {
+      if (payload?.isDisabled) {
+        await forceDisabledLogout();
+      }
+    };
+
+    const setupDisableListener = async () => {
+      socketInstance = await getSocket();
+      if (!isMounted || !socketInstance) return;
+      socketInstance.on("user_list_updated", handleUserListUpdated);
+      socketInstance.on("account_status_changed", handleAccountStatusChanged);
+    };
+
+    verifyCurrentUserStatus();
+    setupDisableListener();
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+      if (socketInstance) {
+        socketInstance.off("user_list_updated", handleUserListUpdated);
+        socketInstance.off("account_status_changed", handleAccountStatusChanged);
+      }
+    };
+  }, [isLoading, isLoggedIn]);
+
   if (isLoading) return <SplashScreen />;
 
   return (
@@ -202,6 +314,7 @@ export default function RootLayout() {
           <Stack.Screen name="user" />
           <Stack.Screen name="meeting" />
           <Stack.Screen name="maintenance-screen" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="account-disabled" options={{ gestureEnabled: false }} />
         </Stack>
         <Toast />
 
