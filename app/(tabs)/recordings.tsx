@@ -1,11 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, Alert, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, Alert, DeviceEventEmitter } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DeviceEventEmitter } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 // import API_URL from '@/utils/api';
@@ -16,6 +13,7 @@ export default function RecordingsScreen() {
   const [recordings, setRecordings] = useState<any[]>([]);
 
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [transcribingId, setTranscribingId] = useState<string | null>(null);
   const player = useAudioPlayer('');
   const status = useAudioPlayerStatus(player);
 
@@ -118,6 +116,43 @@ export default function RecordingsScreen() {
     setDeleteModalVisible(true);
   };
 
+  const transcribeRecording = async (item: any) => {
+    if (!item?._id) return;
+
+    setTranscribingId(item._id);
+
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+
+      if (!token) {
+        Alert.alert('Not signed in', 'Please sign in to transcribe recordings.');
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/recording/${item._id}/transcribe`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.success) {
+        Alert.alert('Transcription failed', data?.error || 'Could not start transcription.');
+        return;
+      }
+
+      router.push({
+        pathname: '/(tabs)/transcription',
+        params: { recordingId: item._id },
+      });
+    } catch (err) {
+      console.error('Transcribe recording error', err);
+      Alert.alert('Transcription failed', 'Network error while starting transcription.');
+    } finally {
+      setTranscribingId(null);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!toDelete) return setDeleteModalVisible(false);
     try {
@@ -195,6 +230,22 @@ export default function RecordingsScreen() {
                 </View>
               </TouchableOpacity>
 
+              <TouchableOpacity
+                onPress={() => transcribeRecording(item)}
+                disabled={transcribingId === item._id}
+              >
+                <View
+                  style={[
+                    styles.transcribeBtn,
+                    transcribingId === item._id && styles.transcribeBtnDisabled,
+                  ]}
+                >
+                  <Text style={styles.transcribeBtnText}>
+                    {transcribingId === item._id ? '⏳ Transcribing...' : '📝 Transcribe'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
               <TouchableOpacity onPress={() => deleteRecording(item)}>
                 <View style={styles.deleteButton}>
                   <Text style={styles.deleteBtnText}>🗑️</Text>
@@ -247,7 +298,7 @@ export default function RecordingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>Delete Recording</Text>
-            <Text style={styles.modalMessage}>Are you sure you want to delete "{toDelete?.originalName || toDelete?.filename}"?</Text>
+            <Text style={styles.modalMessage}>Are you sure you want to delete {`"${toDelete?.originalName || toDelete?.filename}"`}?</Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => { setDeleteModalVisible(false); setToDelete(null); }}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
@@ -297,6 +348,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     fontWeight: '500',
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#6B7280',
   },
   listContent: {
     paddingHorizontal: 20,
@@ -408,6 +463,22 @@ const styles = StyleSheet.create({
     color: '#000000ff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  transcribeBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  transcribeBtnDisabled: {
+    opacity: 0.6,
+  },
+  transcribeBtnText: {
+    color: '#3730A3',
+    fontSize: 14,
+    fontWeight: '700',
   },
   deleteButton: {
     width: 40,
