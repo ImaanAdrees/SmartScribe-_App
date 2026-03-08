@@ -419,7 +419,6 @@ const ProfileScreen = () => {
           styles.contentContainer,
           { paddingBottom: 180 + insets.bottom },
         ]}
-        scrollEnabled={false}
         bounces={false}
         keyboardShouldPersistTaps="handled"
         overScrollMode="always"
