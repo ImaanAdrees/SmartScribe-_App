@@ -5,13 +5,14 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-// import API_URL from '@/utils/api';
+import { Ionicons } from '@expo/vector-icons';
+
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+
 export default function RecordingsScreen() {
   const router = useRouter();
 
   const [recordings, setRecordings] = useState<any[]>([]);
-
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [transcribingId, setTranscribingId] = useState<string | null>(null);
   const player = useAudioPlayer('');
@@ -20,19 +21,13 @@ export default function RecordingsScreen() {
   const fetchRecordings = async () => {
     try {
       const token = await AsyncStorage.getItem('userToken');
-      if (!token) {
-        console.warn('No user token found');
-        return;
-      }
+      if (!token) { console.warn('No user token found'); return; }
 
       const res = await fetch(`${API_URL}/api/recording/user`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!res.ok) {
-        console.warn('Fetch recordings failed', res.status);
-        return;
-      }
+      if (!res.ok) { console.warn('Fetch recordings failed', res.status); return; }
 
       const data = await res.json();
       if (data && data.success) {
@@ -51,7 +46,6 @@ export default function RecordingsScreen() {
   );
 
   useEffect(() => {
-    // Listen for recordingUploaded events for real-time updates
     const listener = DeviceEventEmitter.addListener('recordingUploaded', (payload: any) => {
       try {
         if (payload && payload.recording) {
@@ -64,10 +58,7 @@ export default function RecordingsScreen() {
         fetchRecordings();
       }
     });
-
-    return () => {
-      listener.remove();
-    };
+    return () => { listener.remove(); };
   }, []);
 
   const insets = useSafeAreaInsets();
@@ -80,23 +71,18 @@ export default function RecordingsScreen() {
     try {
       const uri = `${API_URL.replace(/\/$/, '')}/uploads/recording/${item.filename}`;
 
-      // If same item and playing -> pause
       if (playingId === item._id && status.playing && !restart) {
         player.pause();
         return;
       }
-
-      // If same item and paused -> resume
       if (playingId === item._id && !status.playing && !restart) {
         player.play();
         return;
       }
 
-      // New item or restart: replace and play
       setPlayingId(item._id);
       player.replace(uri);
       player.play();
-
     } catch (err) {
       console.error('Playback error', err);
     }
@@ -107,7 +93,6 @@ export default function RecordingsScreen() {
     setPlayingId(null);
   };
 
-  // modal-based delete flow
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [toDelete, setToDelete] = useState<any | null>(null);
 
@@ -118,29 +103,22 @@ export default function RecordingsScreen() {
 
   const transcribeRecording = async (item: any) => {
     if (!item?._id) return;
-
     setTranscribingId(item._id);
-
     try {
       const token = await AsyncStorage.getItem('userToken');
-
       if (!token) {
         Alert.alert('Not signed in', 'Please sign in to transcribe recordings.');
         return;
       }
-
       const res = await fetch(`${API_URL}/api/recording/${item._id}/transcribe`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const data = await res.json();
-
       if (!res.ok || !data?.success) {
         Alert.alert('Transcription failed', data?.error || 'Could not start transcription.');
         return;
       }
-
       router.push({
         pathname: '/(tabs)/transcription',
         params: { recordingId: item._id },
@@ -177,87 +155,6 @@ export default function RecordingsScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: any }) => {
-    const active = playingId === item._id;
-    const isPlaying = active && status.playing;
-
-    return (
-      <View style={styles.recordingCard}>
-
-        <LinearGradient
-          colors={active ? ['#4F46E5', '#1E3A8A'] : ['#ffffffff', '#ffffffff']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.cardGradient}
-        >
-          <View style={styles.cardContent}>
-            <View style={styles.infoSection}>
-              <View style={styles.iconCircle}>
-                <Text style={styles.iconText}>🎙️</Text>
-              </View>
-              <View style={styles.textSection}>
-                <Text style={styles.recordingName}>{item.name || item.originalName || item.filename}</Text>
-                <View style={styles.metaRow}>
-                  <Text style={styles.duration}>⏱️ {active ? formatMillis(status.currentTime * 1000) : (item.duration || '--:--')}</Text>
-                  <Text style={styles.date}>• {new Date(item.createdAt).toLocaleString()}</Text>
-                </View>
-                {active && (
-                  <View style={styles.statusBadge}>
-                    <View style={[styles.statusDot, isPlaying && styles.statusDotActive]} />
-                    <Text style={styles.statusText}>{isPlaying ? 'Playing' : 'Paused'}</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.buttonRow}>
-              <TouchableOpacity onPress={() => (active && status.playing ? player.pause() : playRecording(item))}>
-                <LinearGradient
-                  colors={active && player.playing ? ['#EF4444', '#DC2626'] : ['#7B2FF7', '#7B2FF7']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.actionBtn}
-                >
-                  <Text style={styles.actionBtnText}>
-                    {active && status.playing ? '⏸️ Pause' : '▶️ Play'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={() => replayRecording(item)}>
-                <View style={styles.secondaryBtn}>
-                  <Text style={styles.secondaryBtnText}>🔄 Replay</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => transcribeRecording(item)}
-                disabled={transcribingId === item._id}
-              >
-                <View
-                  style={[
-                    styles.transcribeBtn,
-                    transcribingId === item._id && styles.transcribeBtnDisabled,
-                  ]}
-                >
-                  <Text style={styles.transcribeBtnText}>
-                    {transcribingId === item._id ? '⏳ Transcribing...' : '📝 Transcribe'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={() => deleteRecording(item)}>
-                <View style={styles.deleteButton}>
-                  <Text style={styles.deleteBtnText}>🗑️</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
-    );
-  };
-
   const formatMillis = (ms: number) => {
     if (!ms) return '00:00';
     const total = Math.floor(ms / 1000);
@@ -266,19 +163,123 @@ export default function RecordingsScreen() {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  const renderItem = ({ item }: { item: any }) => {
+    const active = playingId === item._id;
+    const isPlaying = active && status.playing;
+    const isTranscribing = transcribingId === item._id;
+
+    return (
+      <View style={styles.cardWrapper}>
+        <View style={[styles.card, active && styles.cardActive]}>
+
+          {/* Active indicator stripe */}
+          {active && <View style={styles.activeStripe} />}
+
+          {/* Top Row: icon + info + delete */}
+          <View style={styles.topRow}>
+            <LinearGradient
+              colors={active ? ['#6366F1', '#8B5CF6'] : ['#EEF2FF', '#E0E7FF']}
+              style={styles.iconCircle}
+            >
+              <Text style={styles.iconText}>🎙️</Text>
+            </LinearGradient>
+
+            <View style={styles.textSection}>
+              <Text style={styles.recordingName} numberOfLines={1}>
+                {item.name || item.originalName || item.filename}
+              </Text>
+              <View style={styles.metaRow}>
+                <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+                <Text style={styles.metaText}>
+                  {active ? formatMillis(status.currentTime * 1000) : (item.duration || '--:--')}
+                </Text>
+                <View style={styles.metaDot} />
+                <Ionicons name="calendar-outline" size={12} color="#9CA3AF" />
+                <Text style={styles.metaText}>
+                  {new Date(item.createdAt).toLocaleDateString()}
+                </Text>
+              </View>
+
+              {active && (
+                <View style={styles.statusBadge}>
+                  <View style={[styles.statusDot, isPlaying && styles.statusDotActive]} />
+                  <Text style={styles.statusLabel}>{isPlaying ? 'Playing' : 'Paused'}</Text>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteRecording(item)}>
+              <Ionicons name="trash-outline" size={18} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Bottom Row: action buttons */}
+          <View style={styles.btnRow}>
+            {/* Play / Pause */}
+            <TouchableOpacity
+              style={styles.btnFlex}
+              onPress={() => (active && status.playing ? player.pause() : playRecording(item))}
+            >
+              <LinearGradient
+                colors={active && isPlaying ? ['#EF4444', '#DC2626'] : ['#6366F1', '#4F46E5']}
+                style={styles.primaryBtn}
+              >
+                <Ionicons
+                  name={active && isPlaying ? 'pause' : 'play'}
+                  size={14}
+                  color="#FFF"
+                />
+                <Text style={styles.primaryBtnText}>
+                  {active && isPlaying ? 'Pause' : 'Play'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Replay */}
+            <TouchableOpacity style={styles.btnFlex} onPress={() => replayRecording(item)}>
+              <View style={styles.secondaryBtn}>
+                <Ionicons name="refresh" size={14} color="#6366F1" />
+                <Text style={styles.secondaryBtnText}>Replay</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Transcribe */}
+            <TouchableOpacity
+              style={styles.btnFlex}
+              onPress={() => transcribeRecording(item)}
+              disabled={isTranscribing}
+            >
+              <LinearGradient
+                colors={isTranscribing ? ['#9CA3AF', '#6B7280'] : ['#8B5CF6', '#7C3AED']}
+                style={styles.primaryBtn}
+              >
+                <Ionicons name="document-text-outline" size={14} color="#FFF" />
+                <Text style={styles.primaryBtnText}>
+                  {isTranscribing ? 'Wait...' : 'Transcribe'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+        </View>
+      </View>
+    );
+  };
+
   return (
-    <LinearGradient
-      colors={['#ffffffff', '#f9f9f9ff']}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>Saved Recordings</Text>
+    <LinearGradient colors={['#F5F3FF', '#EEF2FF', '#F9FAFB']} style={styles.container}>
+
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <View>
+          <Text style={styles.title}>Recordings</Text>
+          <Text style={styles.subtitle}>{recordings.length} saved file{recordings.length !== 1 ? 's' : ''}</Text>
+        </View>
+        <View style={styles.headerBadge}>
+          <Ionicons name="mic" size={20} color="#6366F1" />
+        </View>
       </View>
-      <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
-        <Text style={styles.debugText}>
-          Debug: {recordings.length} recordings — API: {API_URL}
-        </Text>
-      </View>
+
       <FlatList
         data={recordings}
         keyExtractor={(item) => item._id}
@@ -287,20 +288,35 @@ export default function RecordingsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🎤</Text>
+            <LinearGradient colors={['#EEF2FF', '#E0E7FF']} style={styles.emptyIconCircle}>
+              <Text style={styles.emptyIcon}>🎤</Text>
+            </LinearGradient>
             <Text style={styles.emptyText}>No recordings yet</Text>
             <Text style={styles.emptySubtext}>Start recording to see your audio files here</Text>
           </View>
         }
       />
+
       {/* Delete confirmation modal */}
       <Modal visible={deleteModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
+            <View style={styles.modalIconWrap}>
+              <Ionicons name="trash" size={28} color="#EF4444" />
+            </View>
             <Text style={styles.modalTitle}>Delete Recording</Text>
-            <Text style={styles.modalMessage}>Are you sure you want to delete {`"${toDelete?.originalName || toDelete?.filename}"`}?</Text>
+            <Text style={styles.modalMessage}>
+              Are you sure you want to delete{' '}
+              <Text style={{ fontWeight: '700' }}>
+                "{toDelete?.originalName || toDelete?.filename}"
+              </Text>
+              ? This action cannot be undone.
+            </Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => { setDeleteModalVisible(false); setToDelete(null); }}>
+              <TouchableOpacity
+                style={styles.modalCancel}
+                onPress={() => { setDeleteModalVisible(false); setToDelete(null); }}
+              >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalDelete} onPress={confirmDelete}>
@@ -310,220 +326,235 @@ export default function RecordingsScreen() {
           </View>
         </View>
       </Modal>
+
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 10,
-  },
+  container: { flex: 1 },
+
+  /* Header */
   header: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 15,
-    elevation: 2,
-    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
-  },
-  titleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '800',
     color: '#1F2937',
-    marginBottom: 4,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 2,
     fontWeight: '500',
   },
-  debugText: {
-    fontSize: 12,
-    color: '#6B7280',
+  headerBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+
+  /* List */
   listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
-  recordingCard: {
-    marginBottom: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
+
+  /* Card */
+  cardWrapper: {
+    marginBottom: 14,
+    borderRadius: 18,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
     elevation: 4,
-    boxShadow: "0px 4px 8px rgba(0, 0, 0, 0.3)",
   },
-  cardGradient: {
-    borderRadius: 16,
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
   },
-  cardContent: {
-    padding: 16,
+  cardActive: {
+    borderColor: '#6366F1',
+    backgroundColor: '#FAFAFE',
   },
-  infoSection: {
+  activeStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: '#6366F1',
+    borderTopLeftRadius: 18,
+    borderBottomLeftRadius: 18,
+  },
+
+  /* Top row */
+  topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
+    paddingLeft: 4,
   },
   iconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#fff',
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
-  iconText: {
-    fontSize: 24,
-  },
-  textSection: {
-    flex: 1,
-  },
+  iconText: { fontSize: 20 },
+  textSection: { flex: 1, marginRight: 8 },
   recordingName: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
-    color: '#000000ff',
-    marginBottom: 6,
+    color: '#111827',
+    marginBottom: 4,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
-  duration: {
-    fontSize: 13,
-    color: '#D1D5DB',
-    fontWeight: '500',
-  },
-  date: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    marginLeft: 4,
+  metaText: { fontSize: 12, color: '#9CA3AF', fontWeight: '500' },
+  metaDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#D1D5DB',
+    marginHorizontal: 2,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
-    backgroundColor: '#fff',
+    marginTop: 5,
+    backgroundColor: '#EEF2FF',
     alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    gap: 5,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: '#9CA3AF',
-    marginRight: 6,
   },
-  statusDotActive: {
-    backgroundColor: '#10B981',
+  statusDotActive: { backgroundColor: '#10B981' },
+  statusLabel: { fontSize: 11, color: '#4F46E5', fontWeight: '700' },
+
+  deleteBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  statusText: {
-    fontSize: 11,
-    color: '#000000ff',
-    fontWeight: '600',
-    textTransform: 'uppercase',
+
+  /* Button row */
+  btnRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingLeft: 4,
   },
-  buttonRow: {
+  btnFlex: { flex: 1 },
+  primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  actionBtn: {
+    justifyContent: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 18,
     borderRadius: 12,
+    gap: 5,
   },
-  actionBtnText: {
+  primaryBtnText: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   secondaryBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  secondaryBtnText: {
-    color: '#000000ff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  transcribeBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
-    borderWidth: 1,
-    borderColor: '#C7D2FE',
-  },
-  transcribeBtnDisabled: {
-    opacity: 0.6,
-  },
-  transcribeBtnText: {
-    color: '#3730A3',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  deleteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 'auto',
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1.5,
+    borderColor: '#C7D2FE',
+    gap: 5,
   },
-  deleteBtnText: {
-    fontSize: 18,
+  secondaryBtnText: {
+    color: '#4F46E5',
+    fontSize: 13,
+    fontWeight: '700',
   },
+
+  /* Empty */
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 60,
+    paddingVertical: 70,
   },
-  emptyIcon: {
-    fontSize: 64,
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
+  emptyIcon: { fontSize: 40 },
   emptyText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#FFF',
-    marginBottom: 8,
+    color: '#374151',
+    marginBottom: 6,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#9CA3AF',
     textAlign: 'center',
+    paddingHorizontal: 40,
+    lineHeight: 20,
   },
+
+  /* Modal */
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalBox: {
     width: '86%',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 18,
+    borderRadius: 20,
+    padding: 24,
     alignItems: 'center',
+  },
+  modalIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#FEF2F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   modalTitle: {
     fontSize: 18,
@@ -533,37 +564,30 @@ const styles = StyleSheet.create({
   },
   modalMessage: {
     fontSize: 14,
-    color: '#4B5563',
+    color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
+    lineHeight: 20,
   },
   modalButtons: {
     flexDirection: 'row',
     width: '100%',
-    justifyContent: 'space-between',
+    gap: 10,
   },
   modalCancel: {
     flex: 1,
-    marginRight: 8,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#E5E7EB',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
   },
-  modalCancelText: {
-    color: '#111827',
-    fontWeight: '700',
-  },
+  modalCancelText: { color: '#374151', fontWeight: '700', fontSize: 15 },
   modalDelete: {
     flex: 1,
-    marginLeft: 8,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: '#DC2626',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#EF4444',
     alignItems: 'center',
   },
-  modalDeleteText: {
-    color: '#fff',
-    fontWeight: '800',
-  },
+  modalDeleteText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });

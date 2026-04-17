@@ -16,14 +16,17 @@ import {
   Alert,
   ScrollView,
   Platform,
+  Dimensions,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-// import API_URL from "@/utils/api";
 import { DeviceEventEmitter } from 'react-native';
-import { useAudioRecorder, AudioModule, RecordingOptions } from 'expo-audio';
+import { useAudioRecorder, AudioModule } from 'expo-audio';
 import { logRecordingStarted, logRecordingCompleted, logTranscriptionCreated } from "@/utils/activityLogger";
+import Reanimated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
+const { width, height } = Dimensions.get("window");
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+
 const HomeScreen: React.FC = () => {
   const router = useRouter();
   const [showRecordModal, setShowRecordModal] = useState(false);
@@ -109,14 +112,12 @@ const HomeScreen: React.FC = () => {
 
     if (showRecordModal) {
       startTimer();
-      // Log recording started activity
       logRecordingStarted();
       startAudioRecording();
     } else {
       stopTimer();
       setElapsedTime(0);
       setIsPaused(false);
-      // if modal closed without saving, unload any active recording
       unloadRecordingIfAny();
     }
 
@@ -146,8 +147,6 @@ const HomeScreen: React.FC = () => {
       mimeType: 'audio/webm',
       bitsPerSecond: 128000,
     },
-    // Adding a session ID here forces the hook to recreate the recorder for each new session
-    // because useAudioRecorder uses JSON.stringify(options) as a dependency.
     sessionId: recordingSessionId,
   } as any);
 
@@ -159,13 +158,10 @@ const HomeScreen: React.FC = () => {
         return;
       }
 
-      // In expo-audio, setAudioModeAsync is on AudioModule
       await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
 
-      // LOG: Check URI before starting
       console.log('[DEBUG] startAudioRecording. URI before record:', recorder.uri);
 
-      // Web requires explicit preparation. Try with or without 'Async' as per docs/logs.
       try {
         if ('prepareToRecordAsync' in recorder) {
           await (recorder as any).prepareToRecordAsync();
@@ -177,8 +173,6 @@ const HomeScreen: React.FC = () => {
       }
 
       recorder.record();
-
-      // LOG: URI right after record() might update on some platforms
       console.log('[DEBUG] startAudioRecording. URI after record():', recorder.uri);
     } catch (err) {
       console.error('Start recording error', err);
@@ -228,18 +222,15 @@ const HomeScreen: React.FC = () => {
       const rawFilename = uri.split('/').pop() || `recording-${Date.now()}`;
       const filename = rawFilename.includes('.') ? rawFilename : `${rawFilename}.m4a`;
 
-      // Normalize URI for native platforms - IMPORTANT: fetch on Android needs file:// prefix
       let normalizedUri = uri;
       if (Platform.OS !== 'web' && !uri.startsWith('file://') && !uri.startsWith('content://')) {
         normalizedUri = `file://${uri}`;
         console.log('[DEBUG] Normalized URI for upload:', normalizedUri);
       }
 
-      // Handle browser blob URIs vs native file URIs
       if (Platform.OS === 'web' && uri.startsWith('blob:')) {
         try {
           const blob = await fetch(uri).then((r) => r.blob());
-          // In browsers, append the Blob directly with filename
           form.append('audio', blob, filename);
         } catch (e) {
           console.warn('Failed to fetch blob from URI', e);
@@ -274,13 +265,11 @@ const HomeScreen: React.FC = () => {
       console.log('uploadRecording status', res.status, 'body', json);
       if (res.ok && json && json.success) {
         Alert.alert('Upload', 'Recording uploaded successfully');
-        // Emit event so other screens (e.g., Recordings) can refresh in real-time
         try {
           DeviceEventEmitter.emit('recordingUploaded', { recording: json.recording });
         } catch (e) {
           // ignore
         }
-        // clear the name input after successful save
         try { setRecordingName(''); } catch (e) { }
       } else {
         const errMsg = (json && json.error) || `HTTP ${res.status}`;
@@ -293,11 +282,10 @@ const HomeScreen: React.FC = () => {
       if (err instanceof TypeError && err.message === 'Network request failed') {
         console.error('[DEBUG] Possible causes: Server unreachable, incorrect IP, or CORS blocked.');
       }
-      throw err; // Re-throw to be caught by the caller
+      throw err;
     }
   };
 
-  // 🧠 Handle timer start / stop
   const startTimer = () => {
     stopTimer();
     timerRef.current = setInterval(() => {
@@ -309,53 +297,42 @@ const HomeScreen: React.FC = () => {
     if (timerRef.current) clearInterval(timerRef.current);
   };
 
-  // ⏸ Pause or resume recording
   const handlePauseToggle = () => {
     if (isPaused) {
-      // resume
       startTimer();
       resumeAudioRecording();
     } else {
-      // pause
       stopTimer();
       pauseAudioRecording();
     }
     setIsPaused((prev) => !prev);
   };
 
-  // ⏳ Format time (MM:SS)
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
-  // 📄 Dummy transcription data
   const transcriptions = [
-    { id: "1", title: "Marketing Sync", duration: "35 min", date: "2023-10-15", status: "Summarized" },
-    { id: "2", title: "Lecture: AI Ethics", duration: "1 hr 20 min", date: "2023-10-12", status: "Transcribed" },
-    { id: "3", title: "Client Onboarding Call", duration: "32 min", date: "2023-10-10", status: "Recorded" },
+    { id: "1", title: "Marketing Sync", duration: "35 min", date: "2023-10-15", status: "Summarized", icon: "briefcase" },
+    { id: "2", title: "Lecture: AI Ethics", duration: "1 hr 20 min", date: "2023-10-12", status: "Transcribed", icon: "school" },
+    { id: "3", title: "Client Onboarding Call", duration: "32 min", date: "2023-10-10", status: "Recorded", icon: "people" },
   ];
 
-  // 🟥 Stop Recording
   const handleStopRecording = () => {
     stopTimer();
 
-    // Stop & upload audio
     (async () => {
       try {
         const startUri = recorder.uri;
         console.log('[DEBUG] Stopping recording. isRecording:', recorder.isRecording, 'Start URI:', startUri);
 
         if (recorder.isRecording) {
-          // stop() returns a Promise<void> on web and some native platforms
           await (recorder.stop() as any);
         }
 
-        // Finalize URI - some platforms take a moment to update the URI after stop
         let uri = recorder.uri;
-
-        // On ALL platforms, if we had a previous URI, we MUST wait for a new one or at least wait for finalization
         let attempts = 0;
         const maxAttempts = Platform.OS === 'web' ? 15 : 5;
 
@@ -374,7 +351,6 @@ const HomeScreen: React.FC = () => {
           if (uploadRes && uploadRes.success && uploadRes.recording) {
             const recordingId = uploadRes.recording._id;
 
-            // Trigger transcription in the backend
             try {
               const token = await AsyncStorage.getItem('userToken');
               fetch(`${API_URL}/api/recording/${recordingId}/transcribe`, {
@@ -390,7 +366,7 @@ const HomeScreen: React.FC = () => {
                 pathname: "/(tabs)/transcription",
                 params: { recordingId },
               });
-              return; // Exit here as we handled navigation
+              return;
             } catch (transErr) {
               console.error('Failed to trigger transcription', transErr);
             }
@@ -403,14 +379,10 @@ const HomeScreen: React.FC = () => {
       } catch (err) {
         console.error('Stop/upload error', err);
       } finally {
-        // Reset session ID to ensure a clean recorder for the next session
         setRecordingSessionId(Date.now());
       }
 
-      // Log recording completion with duration
       logRecordingCompleted({ duration: formatTime(elapsedTime) });
-
-      // Log transcription creation
       logTranscriptionCreated({ recordingDuration: formatTime(elapsedTime) });
 
       setShowRecordModal(false);
@@ -419,164 +391,235 @@ const HomeScreen: React.FC = () => {
     })();
   };
 
+  const quickActions = [
+    { title: "Transcriptions", icon: "document-text-outline", color: "#6366F1", route: "/(tabs)/transcription", count: "3 saved" },
+    { title: "Summaries", icon: "document-text", color: "#8B5CF6", route: "/(tabs)/summary", count: "View & edit" },
+    { title: "Recordings", icon: "mic", color: "#A855F7", route: "/(tabs)/recordings", count: "View & edit" },
+  ];
+
+  const getStatusConfig = (status: string) => {
+    switch(status) {
+      case "Summarized":
+        return { bg: "#DCFCE7", color: "#16A34A", icon: "checkmark-circle" };
+      case "Transcribed":
+        return { bg: "#E0E7FF", color: "#4F46E5", icon: "text" };
+      default:
+        return { bg: "#F3E8FF", color: "#7E22CE", icon: "mic" };
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* 🌅 Header Gradient (now just for greeting/mic) */}
-      <LinearGradient colors={["#4F46E5", "#1E3A8A"]} style={styles.headerGradient}>
-        <View style={styles.greetingContainer}>
-          <Text style={styles.greetingText}>{greeting}, {userName} 👋</Text>
-          <Text style={styles.subGreeting}>Ready to start your next meeting?</Text>
-        </View>
+      <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+        {/* 🌅 Header Gradient */}
+        <LinearGradient 
+          colors={["#6366F1", "#4F46E5", "#1E3A8A"]} 
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          {/* Decorative Elements */}
+          <View style={styles.decorCircle1} />
+          <View style={styles.decorCircle2} />
+          <View style={styles.decorCircle3} />
+          
+          <View style={styles.greetingContainer}>
+            <Reanimated.View entering={FadeInDown.delay(100).springify()}>
+              <Text style={styles.greetingText}>{greeting},</Text>
+              <Text style={styles.userNameText}>{userName} 👋</Text>
+            </Reanimated.View>
+            <Reanimated.View entering={FadeInDown.delay(200).springify()}>
+              <Text style={styles.subGreeting}>Ready to capture your next great idea?</Text>
+            </Reanimated.View>
+          </View>
 
-        {/* 🎙 Mic Button */}
-        <View style={styles.micContainer}>
-          <TouchableOpacity
-            style={styles.micButton}
-            onPress={() => { setRecordingName(''); setShowRecordModal(true); }}
-            activeOpacity={0.7}
+          {/* 🎙 Mic Button */}
+          <Reanimated.View entering={FadeInUp.delay(300).springify()} style={styles.micContainer}>
+            <TouchableOpacity
+              style={styles.micButton}
+              onPress={() => { setRecordingName(''); setShowRecordModal(true); }}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={["#FFFFFF", "#F3F4F6"]}
+                style={styles.micButtonGradient}
+              >
+                <Ionicons name="mic" size={48} color="#4F46E5" />
+              </LinearGradient>
+              <View style={styles.pulseRing} />
+            </TouchableOpacity>
+            <Text style={styles.tapText}>Tap to start recording</Text>
+          </Reanimated.View>
+        </LinearGradient>
+
+        {/* 📁 Quick Access Cards */}
+        <Reanimated.View entering={FadeInDown.delay(400).springify()}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Quick Access</Text>
+            <Text style={styles.sectionSubtitle}>Your recent activities</Text>
+          </View>
+          
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.cardsContainer}
           >
-            <Ionicons name="mic-outline" size={42} color="#4F46E5" />
-          </TouchableOpacity>
-          <Text style={styles.tapText}>Tap to record your next meeting or lecture</Text>
-        </View>
-      </LinearGradient>
+            {quickActions.map((action, index) => (
+              <TouchableOpacity 
+                key={index}
+                style={styles.card}
+                onPress={() => router.push(action.route as any)}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={[action.color, `${action.color}CC`]}
+                  style={styles.cardIconBg}
+                >
+                  <Ionicons name={action.icon as any} size={28} color="#FFF" />
+                </LinearGradient>
+                <Text style={styles.cardTitle}>{action.title}</Text>
+                <Text style={styles.cardSubtitle}>{action.count}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Reanimated.View>
 
-      {/* 📁 Quick Access Cards */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingVertical: 12,  // ⬅️ adds top & bottom margin for cards
-        }}
-        style={{ marginTop: 20, marginBottom: 10, }}
-      >
-        <TouchableOpacity style={styles.card} onPress={() => router.push("/(tabs)/transcription")}>
-          <Ionicons name="document-text-outline" size={26} color="#4F46E5" />
-          <Text style={styles.cardTitle}>My Transcriptions</Text>
-          <Text style={styles.cardSubtitle}>3 saved meetings</Text>
-        </TouchableOpacity>
+        {/* 📜 Recent Transcriptions */}
+        <Reanimated.View entering={FadeInDown.delay(500).springify()}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Transcriptions</Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/transcription")}>
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
 
-        <TouchableOpacity style={styles.card} onPress={() => router.push("/(tabs)/summary")}>
-          <MaterialCommunityIcons
-            name="calendar-clock-outline"
-            size={26}
-            color="#4F46E5"
-          />
-          <Text style={styles.cardTitle}>Summaries</Text>
-          <Text style={styles.cardSubtitle}>View & edit</Text>
-        </TouchableOpacity>
+          {transcriptions.map((item, index) => {
+            const statusConfig = getStatusConfig(item.status);
+            return (
+              <TouchableOpacity key={item.id} activeOpacity={0.7}>
+                <LinearGradient
+                  colors={["#FFFFFF", "#F9FAFB"]}
+                  style={styles.listItem}
+                >
+                  <View style={styles.listLeft}>
+                    <View style={[styles.listIcon, { backgroundColor: `${statusConfig.color}15` }]}>
+                      <Ionicons name={statusConfig.icon as any} size={20} color={statusConfig.color} />
+                    </View>
+                    <View>
+                      <Text style={styles.listTitle}>{item.title}</Text>
+                      <Text style={styles.listSubtitle}>
+                        {item.duration} • {item.date}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
+                    <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                      {item.status}
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
+        </Reanimated.View>
 
-        <TouchableOpacity style={styles.card} onPress={() => router.push("/(tabs)/recordings")}>
-          <MaterialCommunityIcons
-            name="microphone-outline"
-            size={26}
-            color="#4F46E5"
-          />
-          <Text style={styles.cardTitle}>Saved Recordings</Text>
-          <Text style={styles.cardSubtitle}>View & edit</Text>
-        </TouchableOpacity>
+        {/* Stats Section */}
+        <Reanimated.View entering={FadeInDown.delay(600).springify()} style={styles.statsContainer}>
+          <LinearGradient colors={["#EEF2FF", "#E0E7FF"]} style={styles.statCard}>
+            <MaterialCommunityIcons name="microphone" size={24} color="#4F46E5" />
+            <Text style={styles.statNumber}>12</Text>
+            <Text style={styles.statLabel}>Total Recordings</Text>
+          </LinearGradient>
+          <LinearGradient colors={["#F3E8FF", "#E9D5FF"]} style={styles.statCard}>
+            <Ionicons name="document-text" size={24} color="#8B5CF6" />
+            <Text style={styles.statNumber}>8</Text>
+            <Text style={styles.statLabel}>Transcriptions</Text>
+          </LinearGradient>
+          <LinearGradient colors={["#DCFCE7", "#BBF7D0"]} style={styles.statCard}>
+            <MaterialCommunityIcons name="summary" size={24} color="#16A34A" />
+            <Text style={styles.statNumber}>5</Text>
+            <Text style={styles.statLabel}>Summaries</Text>
+          </LinearGradient>
+        </Reanimated.View>
       </ScrollView>
 
-
-      {/* 📜 Recent Transcriptions */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Transcriptions</Text>
-      </View>
-
-      <FlatList
-        data={transcriptions}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.listItem}>
-            <View style={styles.listLeft}>
-              <Text style={styles.listTitle}>{item.title}</Text>
-              <Text style={styles.listSubtitle}>
-                {item.duration} • {item.date}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.statusBadge,
-                {
-                  backgroundColor:
-                    item.status === "Summarized"
-                      ? "#DCFCE7"
-                      : item.status === "Transcribed"
-                        ? "#E0E7FF"
-                        : "#F3E8FF",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusText,
-                  {
-                    color:
-                      item.status === "Summarized"
-                        ? "#16A34A"
-                        : item.status === "Transcribed"
-                          ? "#4F46E5"
-                          : "#7E22CE",
-                  },
-                ]}
-              >
-                {item.status}
-              </Text>
-            </View>
-          </View>
-        )}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {/* 💬 Floating Chat */}
+      {/* 💬 Floating Chat Button */}
       <TouchableOpacity style={styles.chatButton} onPress={() => router.push("/meeting/smartsearch")}>
-        <Ionicons name="chatbubbles-outline" size={26} color="#FFF" />
+        <LinearGradient
+          colors={["#6366F1", "#4F46E5"]}
+          style={styles.chatButtonGradient}
+        >
+          <Ionicons name="chatbubbles" size={26} color="#FFF" />
+        </LinearGradient>
       </TouchableOpacity>
 
       {/* 🎞 Recording Modal */}
       <Modal transparent visible={showRecordModal} animationType="none">
         <View style={styles.modalOverlay}>
           <Animated.View style={[styles.modalContent, { transform: [{ translateY: slideAnim }] }]}>
-            <Text style={styles.modalTitle}>Recording in Progress 🎙️</Text>
-
-            <TextInput
-              placeholder="Recording name (optional)"
-              value={recordingName}
-              onChangeText={setRecordingName}
-              style={styles.recordingNameInput}
-            />
-
-            <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
-
-            <View style={styles.buttonRow}>
-              <TouchableOpacity
-                style={[styles.controlButton, styles.pauseButton]}
-                onPress={handlePauseToggle}
-              >
-                <Ionicons
-                  name={isPaused ? "play-outline" : "pause-outline"}
-                  size={32}
-                  color="#FFF"
-                />
-                <Text style={styles.controlLabel}>{isPaused ? "Resume" : "Pause"}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.controlButton, styles.stopButton]}
-                onPress={handleStopRecording}
-              >
-                <Ionicons name="stop-outline" size={32} color="#FFF" />
-                <Text style={styles.controlLabel}>Stop</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => { setShowRecordModal(false); setRecordingName(''); }}
+            <LinearGradient
+              colors={["#6366F1", "#4F46E5"]}
+              style={styles.modalGradient}
             >
-              <Ionicons name="close" size={26} color="#FFF" />
-            </TouchableOpacity>
+              <View style={styles.modalHeader}>
+                <View style={styles.recordingIndicator}>
+                  <View style={styles.recordingDot} />
+                  <Text style={styles.recordingText}>RECORDING</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.modalCloseBtn}
+                  onPress={() => { setShowRecordModal(false); setRecordingName(''); }}
+                >
+                  <Ionicons name="close" size={24} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                placeholder="Recording name (optional)"
+                placeholderTextColor="#C7D2FE"
+                value={recordingName}
+                onChangeText={setRecordingName}
+                style={styles.recordingNameInput}
+              />
+
+              <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={[styles.controlButton, styles.pauseButton]}
+                  onPress={handlePauseToggle}
+                >
+                  <Ionicons
+                    name={isPaused ? "play" : "pause"}
+                    size={32}
+                    color="#FFF"
+                  />
+                  <Text style={styles.controlLabel}>{isPaused ? "Resume" : "Pause"}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.controlButton, styles.stopButton]}
+                  onPress={handleStopRecording}
+                >
+                  <Ionicons name="square" size={28} color="#FFF" />
+                  <Text style={styles.controlLabel}>Stop</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.waveformContainer}>
+                {[...Array(20)].map((_, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.waveformBar,
+                      {
+                        height: 20 + Math.sin(Date.now() / 200 + i) * 15,
+                      }
+                    ]}
+                  />
+                ))}
+              </View>
+            </LinearGradient>
           </Animated.View>
         </View>
       </Modal>
@@ -587,129 +630,255 @@ const HomeScreen: React.FC = () => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFF" },
+  container: { flex: 1, backgroundColor: "#F9FAFB" },
   headerGradient: {
-    paddingBottom: 24,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: "hidden",
+    position: "relative",
   },
-  headerTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 35,
+  decorCircle1: {
+    position: "absolute",
+    top: -50,
+    right: -30,
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
   },
-  headerTitle: {
-    color: "#FFF",
-    fontSize: 22,
-    fontWeight: "700",
+  decorCircle2: {
+    position: "absolute",
+    bottom: -40,
+    left: -40,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
   },
-  profileIcon: {
-    width: 42,
-    height: 42,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  greetingContainer: { paddingHorizontal: 50, marginTop: 20 },
-  greetingText: { color: "#FFF", fontSize: 20, fontWeight: "600" },
-  subGreeting: { color: "#E0E7FF", marginTop: 4 },
-  micContainer: { alignItems: "center", marginTop: 30 },
-  micButton: {
-    backgroundColor: "#ffffffff",
+  decorCircle3: {
+    position: "absolute",
+    top: "40%",
+    left: -20,
     width: 80,
     height: 80,
     borderRadius: 40,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  greetingContainer: { paddingHorizontal: 24, marginTop: 40 },
+  greetingText: { color: "#C7D2FE", fontSize: 16, fontWeight: "500", marginBottom: 4 },
+  userNameText: { color: "#FFF", fontSize: 32, fontWeight: "700", marginBottom: 8 },
+  subGreeting: { color: "#E0E7FF", fontSize: 14, marginTop: 4, opacity: 0.9 },
+  micContainer: { alignItems: "center", marginTop: 40 },
+  micButton: {
+    position: "relative",
+  },
+  micButtonGradient: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     alignItems: "center",
     justifyContent: "center",
-    boxShadow: "0px 0px 10px rgba(0, 0, 0, 0.2)",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  tapText: { color: "#E0E7FF", marginTop: 10, fontSize: 13 },
-  cardRow: {
+  pulseRing: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    top: -10,
+    left: -10,
+  },
+  tapText: { color: "#E0E7FF", marginTop: 16, fontSize: 14, fontWeight: "500" },
+  sectionHeader: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginHorizontal: 16,
-    marginTop: 20,
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 16,
   },
+  sectionTitle: { fontSize: 20, fontWeight: "700", color: "#1F2937" },
+  sectionSubtitle: { fontSize: 13, color: "#6B7280", marginTop: 2 },
+  seeAllText: { fontSize: 13, color: "#6366F1", fontWeight: "600" },
+  cardsContainer: { paddingHorizontal: 16, paddingBottom: 8, gap: 12 },
   card: {
-    width: 150,
-    backgroundColor: "#fff",
+    width: 140,
+    backgroundColor: "#FFF",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 20,
     marginRight: 12,
-    elevation: 3,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     alignItems: "center",
   },
-  cardTitle: {
-    textAlign: "center",
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#111827",
-    marginTop: 6,
+  cardIconBg: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
   },
-  cardSubtitle: { fontSize: 12, color: "#6B7280", marginTop: 2 },
-  sectionHeader: { paddingHorizontal: 16, marginTop: 10, marginBottom: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: "600", color: "#111827" },
+  cardTitle: { fontSize: 15, fontWeight: "600", color: "#1F2937", marginTop: 4 },
+  cardSubtitle: { fontSize: 11, color: "#6B7280", marginTop: 2 },
   listItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    marginHorizontal: 16,
-    padding: 14,
-    borderRadius: 12,
+    marginHorizontal: 20,
+    padding: 16,
+    borderRadius: 16,
     marginBottom: 10,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
-  listLeft: { flex: 1 },
-  listTitle: { fontSize: 16, fontWeight: "600", color: "#111827" },
-  listSubtitle: { fontSize: 13, color: "#6B7280" },
-  statusBadge: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 10 },
-  statusText: { fontSize: 13, fontWeight: "600" },
-  chatButton: {
-    backgroundColor: "#6D28D9",
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+  listLeft: { flex: 1, flexDirection: "row", alignItems: "center", gap: 12 },
+  listIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
+  },
+  listTitle: { fontSize: 16, fontWeight: "600", color: "#1F2937", marginBottom: 2 },
+  listSubtitle: { fontSize: 13, color: "#6B7280" },
+  statusBadge: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20 },
+  statusText: { fontSize: 12, fontWeight: "600" },
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginTop: 24,
+    marginBottom: 40,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+    gap: 8,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  statNumber: { fontSize: 20, fontWeight: "700", color: "#1F2937" },
+  statLabel: { fontSize: 11, color: "#6B7280", fontWeight: "500" },
+  chatButton: {
     position: "absolute",
-    bottom: 40,
-    right: 22,
-    boxShadow: "0px 0px 10px rgba(0, 0, 0, 0.2)",
+    bottom: 30,
+    right: 20,
+    elevation: 8,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  chatButtonGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    overflow: "hidden",
+  },
+  modalGradient: {
+    padding: 24,
     alignItems: "center",
   },
-  modalTitle: { fontSize: 18, fontWeight: "600", color: "#111827", marginBottom: 10 },
-  timerText: { fontSize: 26, fontWeight: "700", color: "#6D28D9", marginBottom: 20 },
-  recordingNameInput: {
-    width: '100%',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 12,
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 20,
   },
-  buttonRow: { flexDirection: "row", justifyContent: "space-evenly", width: "100%" },
+  recordingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
+  },
+  recordingText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recordingNameInput: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 16,
+    color: "#FFF",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  timerText: { fontSize: 48, fontWeight: "700", color: "#FFF", marginBottom: 30, fontVariant: ["tabular-nums"] },
+  buttonRow: { flexDirection: "row", justifyContent: "space-evenly", width: "100%", gap: 16, marginBottom: 30 },
   controlButton: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    width: "40%",
-    borderRadius: 12,
+    paddingVertical: 14,
+    flex: 1,
+    borderRadius: 16,
+    flexDirection: "row",
+    gap: 8,
   },
-  pauseButton: { backgroundColor: "#2196F3" },
-  stopButton: { backgroundColor: "#DC2626" },
-  controlLabel: { color: "#FFF", marginTop: 4, fontSize: 14, fontWeight: "600" },
-  closeButton: { marginTop: 16, backgroundColor: "#6D28D9", padding: 10, borderRadius: 30 },
+  pauseButton: { backgroundColor: "#3B82F6" },
+  stopButton: { backgroundColor: "#EF4444" },
+  controlLabel: { color: "#FFF", fontSize: 16, fontWeight: "600" },
+  waveformContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: 10,
+  },
+  waveformBar: {
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.6)",
+  },
 });
