@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -8,6 +7,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  FlatList,
+  SafeAreaView,
 } from "react-native";
 import { Link, router } from "expo-router";
 import { authAPI } from "../../utils/api";
@@ -15,6 +17,187 @@ import { showToast } from "../../utils/ToastHelper";
 import { Ionicons } from "@expo/vector-icons";
 
 const PENDING_SIGNUP_KEY = "pendingSignupData";
+
+// ─── Country & City Data ───────────────────────────────────────────────────────
+
+const COUNTRIES = [
+  "Afghanistan", "Albania", "Algeria", "Argentina", "Australia",
+  "Austria", "Bangladesh", "Belgium", "Brazil", "Canada",
+  "Chile", "China", "Colombia", "Denmark", "Egypt",
+  "Ethiopia", "Finland", "France", "Germany", "Ghana",
+  "Greece", "Hungary", "India", "Indonesia", "Iran",
+  "Iraq", "Ireland", "Israel", "Italy", "Japan",
+  "Jordan", "Kazakhstan", "Kenya", "Malaysia", "Mexico",
+  "Morocco", "Netherlands", "New Zealand", "Nigeria", "Norway",
+  "Pakistan", "Peru", "Philippines", "Poland", "Portugal",
+  "Romania", "Russia", "Saudi Arabia", "South Africa", "South Korea",
+  "Spain", "Sri Lanka", "Sweden", "Switzerland", "Thailand",
+  "Turkey", "Ukraine", "United Arab Emirates", "United Kingdom",
+  "United States", "Venezuela", "Vietnam", "Other",
+];
+
+const CITIES_BY_COUNTRY: Record<string, string[]> = {
+  Pakistan: [
+    "Karachi", "Lahore", "Islamabad", "Rawalpindi", "Faisalabad",
+    "Multan", "Peshawar", "Quetta", "Sialkot", "Gujranwala", "Other",
+  ],
+  India: [
+    "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai",
+    "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Surat", "Other",
+  ],
+  "United States": [
+    "New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
+    "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose", "Other",
+  ],
+  "United Kingdom": [
+    "London", "Manchester", "Birmingham", "Leeds", "Glasgow",
+    "Liverpool", "Edinburgh", "Bristol", "Cardiff", "Sheffield", "Other",
+  ],
+  Canada: [
+    "Toronto", "Vancouver", "Montreal", "Calgary", "Ottawa",
+    "Edmonton", "Winnipeg", "Quebec City", "Hamilton", "Other",
+  ],
+  Australia: [
+    "Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide",
+    "Gold Coast", "Canberra", "Hobart", "Darwin", "Other",
+  ],
+  Germany: [
+    "Berlin", "Hamburg", "Munich", "Cologne", "Frankfurt",
+    "Stuttgart", "Düsseldorf", "Leipzig", "Dortmund", "Other",
+  ],
+  France: [
+    "Paris", "Marseille", "Lyon", "Toulouse", "Nice",
+    "Nantes", "Strasbourg", "Montpellier", "Bordeaux", "Other",
+  ],
+  China: [
+    "Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu",
+    "Hangzhou", "Wuhan", "Xi'an", "Nanjing", "Other",
+  ],
+  "Saudi Arabia": [
+    "Riyadh", "Jeddah", "Mecca", "Medina", "Dammam",
+    "Taif", "Tabuk", "Buraidah", "Khamis Mushait", "Other",
+  ],
+  "United Arab Emirates": [
+    "Dubai", "Abu Dhabi", "Sharjah", "Al Ain", "Ajman",
+    "Ras Al Khaimah", "Fujairah", "Umm Al Quwain", "Other",
+  ],
+  Turkey: [
+    "Istanbul", "Ankara", "Izmir", "Bursa", "Adana",
+    "Gaziantep", "Konya", "Antalya", "Kayseri", "Other",
+  ],
+  Bangladesh: [
+    "Dhaka", "Chittagong", "Sylhet", "Rajshahi", "Khulna",
+    "Comilla", "Narayanganj", "Mymensingh", "Other",
+  ],
+  Nigeria: [
+    "Lagos", "Abuja", "Kano", "Ibadan", "Port Harcourt",
+    "Benin City", "Maiduguri", "Enugu", "Kaduna", "Other",
+  ],
+  Egypt: [
+    "Cairo", "Alexandria", "Giza", "Luxor", "Aswan",
+    "Port Said", "Suez", "Mansoura", "Tanta", "Other",
+  ],
+};
+
+// ─── Dropdown Picker Component ────────────────────────────────────────────────
+
+interface DropdownPickerProps {
+  placeholder: string;
+  value: string;
+  options: string[];
+  onSelect: (val: string) => void;
+  disabled?: boolean;
+}
+
+function DropdownPicker({
+  placeholder,
+  value,
+  options,
+  onSelect,
+  disabled = false,
+}: DropdownPickerProps) {
+  const [visible, setVisible] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = options.filter((o) =>
+    o.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <>
+      <TouchableOpacity
+        style={[styles.dropdownTrigger, disabled && styles.dropdownDisabled]}
+        onPress={() => !disabled && setVisible(true)}
+        activeOpacity={disabled ? 1 : 0.7}
+      >
+        <Text style={[styles.dropdownTriggerText, !value && styles.placeholderText]}>
+          {value || placeholder}
+        </Text>
+        <Ionicons name="chevron-down" size={18} color={disabled ? "#bbb" : "#555"} />
+      </TouchableOpacity>
+
+      <Modal visible={visible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <SafeAreaView style={styles.modalSheet}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{placeholder}</Text>
+              <TouchableOpacity onPress={() => { setVisible(false); setSearch(""); }}>
+                <Ionicons name="close" size={24} color="#333" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search */}
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={16} color="#999" style={{ marginRight: 6 }} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder={`Search ${placeholder}...`}
+                value={search}
+                onChangeText={setSearch}
+                autoFocus
+              />
+            </View>
+
+            {/* List */}
+            <FlatList
+              data={filtered}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.optionItem,
+                    item === value && styles.optionSelected,
+                  ]}
+                  onPress={() => {
+                    onSelect(item);
+                    setVisible(false);
+                    setSearch("");
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.optionText,
+                      item === value && styles.optionTextSelected,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                  {item === value && (
+                    <Ionicons name="checkmark" size={18} color="#4F46E5" />
+                  )}
+                </TouchableOpacity>
+              )}
+              keyboardShouldPersistTaps="handled"
+            />
+          </SafeAreaView>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+// ─── Signup Screen ─────────────────────────────────────────────────────────────
 
 export default function SignupScreen() {
   const [name, setName] = useState("");
@@ -34,6 +217,17 @@ export default function SignupScreen() {
   const [loading, setLoading] = useState(false);
 
   const roles = ["Student", "Teacher", "Other"];
+
+  // When country changes, reset city
+  const handleCountrySelect = (val: string) => {
+    setCountry(val);
+    setCity("");
+  };
+
+  const cityOptions =
+    country && CITIES_BY_COUNTRY[country]
+      ? CITIES_BY_COUNTRY[country]
+      : ["Other"];
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -164,18 +358,21 @@ export default function SignupScreen() {
         onChangeText={setOrganization}
       />
 
-      <TextInput
-        style={styles.input}
-        placeholder="City"
-        value={city}
-        onChangeText={setCity}
-      />
-
-      <TextInput
-        style={styles.input}
+      {/* COUNTRY DROPDOWN */}
+      <DropdownPicker
         placeholder="Country"
         value={country}
-        onChangeText={setCountry}
+        options={COUNTRIES}
+        onSelect={handleCountrySelect}
+      />
+
+      {/* CITY DROPDOWN */}
+      <DropdownPicker
+        placeholder="City"
+        value={city}
+        options={cityOptions}
+        onSelect={setCity}
+        disabled={!country}
       />
 
       {/* PASSWORD */}
@@ -293,6 +490,107 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  // ── Dropdown ──────────────────────────────────────────────────────────────
+  dropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    marginBottom: 12,
+    backgroundColor: "white",
+  },
+
+  dropdownDisabled: {
+    backgroundColor: "#f5f5f5",
+  },
+
+  dropdownTriggerText: {
+    fontSize: 14,
+    color: "#000",
+  },
+
+  placeholderText: {
+    color: "#aaa",
+  },
+
+  // ── Modal ─────────────────────────────────────────────────────────────────
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+
+  modalSheet: {
+    backgroundColor: "white",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: "75%",
+    paddingBottom: 20,
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+  },
+
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#333",
+  },
+
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#333",
+  },
+
+  optionItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderColor: "#f2f2f2",
+  },
+
+  optionSelected: {
+    backgroundColor: "#EEF2FF",
+  },
+
+  optionText: {
+    fontSize: 15,
+    color: "#333",
+  },
+
+  optionTextSelected: {
+    color: "#4F46E5",
+    fontWeight: "600",
+  },
+
+  // ── Password ──────────────────────────────────────────────────────────────
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -308,6 +606,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
 
+  // ── Role ──────────────────────────────────────────────────────────────────
   roleLabel: {
     marginTop: 10,
     marginBottom: 8,
@@ -342,6 +641,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
+  // ── Button / Link ─────────────────────────────────────────────────────────
   button: {
     backgroundColor: "#4F46E5",
     padding: 14,

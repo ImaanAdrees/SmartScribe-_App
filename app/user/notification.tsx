@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, Pressable, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotifications } from '../../context/NotificationContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, FadeInUp, Layout } from 'react-native-reanimated';
+
+const { width } = Dimensions.get('window');
 
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
@@ -54,108 +58,188 @@ export default function NotificationsScreen() {
     setItemToDelete(null);
   };
 
-  const renderItem = ({ item }: { item: any }) => {
-    const getTypeColor = (type: string) => {
-      switch (type) {
-        case 'success':
-          return '#4CAF50';
-        case 'alert':
-          return '#FF5252';
-        case 'warning':
-          return '#FFC107';
-        default:
-          return '#2196F3';
-      }
-    };
+  const getTypeConfig = (type: string) => {
+    switch (type) {
+      case 'success':
+        return {
+          color: '#10B981',
+          bg: '#D1FAE5',
+          icon: 'checkmark-circle',
+          gradient: ['#10B981', '#059669']
+        };
+      case 'alert':
+        return {
+          color: '#EF4444',
+          bg: '#FEE2E2',
+          icon: 'alert-circle',
+          gradient: ['#EF4444', '#DC2626']
+        };
+      case 'warning':
+        return {
+          color: '#F59E0B',
+          bg: '#FEF3C7',
+          icon: 'warning',
+          gradient: ['#F59E0B', '#D97706']
+        };
+      default:
+        return {
+          color: '#6366F1',
+          bg: '#E0E7FF',
+          icon: 'information-circle',
+          gradient: ['#6366F1', '#4F46E5']
+        };
+    }
+  };
 
-    const getTypeIcon = (type: string) => {
-      switch (type) {
-        case 'success':
-          return 'checkmark-circle';
-        case 'alert':
-          return 'alert-circle';
-        case 'warning':
-          return 'warning';
-        default:
-          return 'information-circle';
-      }
-    };
-
+  const renderItem = ({ item, index }: { item: any; index: number }) => {
+    const typeConfig = getTypeConfig(item.type);
+    
     return (
-      <View
-        style={[
-          styles.item,
-          {
-            borderLeftColor: getTypeColor(item.type),
-            borderLeftWidth: 4,
-            backgroundColor: item.isRead ? '#f8f9fa' : '#f0f5ff',
-          }
-        ]}
+      <Animated.View
+        entering={FadeInDown.delay(index * 50).springify()}
+        layout={Layout.springify()}
       >
-        <TouchableOpacity
-          style={styles.itemContent}
-          onPress={() => markAsRead(item.id)}
-          activeOpacity={0.7}
+        <LinearGradient
+          colors={item.isRead ? ['#FFFFFF', '#F9FAFB'] : ['#EEF2FF', '#FFFFFF']}
+          style={[
+            styles.item,
+            item.isRead && styles.readItem
+          ]}
         >
-          <Ionicons name={getTypeIcon(item.type)} size={24} color={getTypeColor(item.type)} style={{ marginRight: 12 }} />
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={[styles.title, { flex: 1 }]}>{item.title}</Text>
-              {!item.isRead && (
-                <View style={styles.unreadBadge}>
-                  <Text style={styles.unreadText}>New</Text>
+          <TouchableOpacity
+            style={styles.itemContent}
+            onPress={() => markAsRead(item.id)}
+            activeOpacity={0.7}
+          >
+            {/* Icon Circle */}
+            <LinearGradient
+              colors={typeConfig.gradient}
+              style={styles.iconCircle}
+            >
+              <Ionicons name={typeConfig.icon as any} size={24} color="#FFF" />
+            </LinearGradient>
+
+            <View style={styles.itemTextContainer}>
+              <View style={styles.titleRow}>
+                <Text style={styles.title}>{item.title}</Text>
+                {!item.isRead && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadText}>NEW</Text>
+                  </View>
+                )}
+              </View>
+              
+              {item.tag && (
+                <View style={[styles.tagBadge, { backgroundColor: `${typeConfig.color}15` }]}>
+                  <Text style={[styles.tagText, { color: typeConfig.color }]}>{item.tag}</Text>
                 </View>
               )}
-            </View>
-            {item.tag && (
-              <View style={styles.tagBadge}>
-                <Text style={styles.tagText}>{item.tag}</Text>
+              
+              <Text style={styles.message}>{item.message}</Text>
+              
+              <View style={styles.timeContainer}>
+                <Ionicons name="time-outline" size={12} color="#9CA3AF" />
+                <Text style={styles.time}>{formatTime(item.receivedAt)}</Text>
               </View>
-            )}
-            <Text style={styles.message}>{item.message}</Text>
-            <Text style={styles.time}>{formatTime(item.receivedAt)}</Text>
-          </View>
-        </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.deleteBtn}
-          onPress={() => handleDelete(item)}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="close" size={20} color="#E53935" />
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => handleDelete(item)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <LinearGradient
+              colors={['#FEE2E2', '#FECACA']}
+              style={styles.deleteBtnGradient}
+            >
+              <Ionicons name="close" size={16} color="#EF4444" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </LinearGradient>
+      </Animated.View>
     );
+  };
+
+  const stats = {
+    total: notifications.length,
+    unread: notifications.filter(n => !n.isRead).length,
+    alerts: notifications.filter(n => n.type === 'alert').length,
   };
 
   return (
     <View style={styles.container}>
-      <View style={[styles.headerRow, { paddingTop: insets.top + 8 }]}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#4F46E5" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        <View style={styles.placeholder} />
-      </View>
+      {/* Header with Gradient */}
+      <LinearGradient
+        colors={['#6366F1', '#4F46E5', '#1E3A8A']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.headerGradient, { paddingTop: insets.top + 20 }]}
+      >
+        <View style={styles.headerRow}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={24} color="#4F46E5" />
+          </Pressable>
+          <Text style={styles.headerTitle}>Notifications</Text>
+          <View style={styles.placeholder} />
+        </View>
 
-      {/* <Text style={styles.header}>Notifications</Text> */}
+        {/* Stats Cards */}
+        <View style={styles.statsContainer}>
+          <LinearGradient colors={['#FFFFFF', '#F9FAFB']} style={styles.statCard}>
+            <View style={styles.statIconBg}>
+              <Ionicons name="notifications" size={20} color="#6366F1" />
+            </View>
+            <Text style={styles.statNumber}>{stats.total}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </LinearGradient>
 
+          <LinearGradient colors={['#FFFFFF', '#F9FAFB']} style={styles.statCard}>
+            <View style={[styles.statIconBg, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="mail-unread" size={20} color="#EF4444" />
+            </View>
+            <Text style={styles.statNumber}>{stats.unread}</Text>
+            <Text style={styles.statLabel}>Unread</Text>
+          </LinearGradient>
+
+          <LinearGradient colors={['#FFFFFF', '#F9FAFB']} style={styles.statCard}>
+            <View style={[styles.statIconBg, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="alert-circle" size={20} color="#F59E0B" />
+            </View>
+            <Text style={styles.statNumber}>{stats.alerts}</Text>
+            <Text style={styles.statLabel}>Alerts</Text>
+          </LinearGradient>
+        </View>
+      </LinearGradient>
+
+      {/* Content */}
       {isLoading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#4F46E5" />
-          <Text style={{ marginTop: 12, color: '#666' }}>Loading notifications...</Text>
+          <ActivityIndicator size="large" color="#6366F1" />
+          <Text style={styles.loadingText}>Loading notifications...</Text>
         </View>
       ) : notifications.length === 0 ? (
-        <View style={styles.center}>
-          <Ionicons name="notifications-off" size={64} color="#CCC" />
-          <Text style={{ marginTop: 12, color: '#999', fontSize: 16 }}>No notifications yet</Text>
-        </View>
+        <Animated.View entering={FadeInUp.springify()} style={styles.emptyContainer}>
+          <LinearGradient
+            colors={['#EEF2FF', '#FFFFFF']}
+            style={styles.emptyCard}
+          >
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="notifications-off" size={64} color="#6366F1" />
+            </View>
+            <Text style={styles.emptyTitle}>No Notifications Yet</Text>
+            <Text style={styles.emptyMessage}>
+              When you receive notifications, they'll appear here
+            </Text>
+          </LinearGradient>
+        </Animated.View>
       ) : (
         <FlatList
           data={notifications}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 24, paddingHorizontal: 16 }}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
         />
       )}
 
@@ -167,16 +251,26 @@ export default function NotificationsScreen() {
         onRequestClose={cancelDelete}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-                <Ionicons name="trash-outline" size={28} color="#EF4444" />
+          <Animated.View entering={FadeInDown.springify()} style={styles.modalContent}>
+            <LinearGradient
+              colors={['#EF4444', '#DC2626']}
+              style={styles.modalHeaderGradient}
+            >
+              <View style={styles.modalIconContainer}>
+                <Ionicons name="trash-outline" size={32} color="#FFF" />
               </View>
+            </LinearGradient>
+            
+            <View style={styles.modalBody}>
               <Text style={styles.modalTitle}>Delete Notification</Text>
+              <Text style={styles.modalMessage}>
+                Are you sure you want to delete "{itemToDelete?.title}"?
+              </Text>
+              <Text style={styles.modalWarning}>
+                This action cannot be undone.
+              </Text>
             </View>
-            <Text style={styles.modalMessage}>
-              {`Are you sure you want to delete "${itemToDelete?.title}"? This action cannot be undone.`}
-            </Text>
+
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={styles.cancelButton}
@@ -190,10 +284,15 @@ export default function NotificationsScreen() {
                 onPress={confirmDelete}
                 activeOpacity={0.7}
               >
-                <Text style={styles.confirmButtonText}>Delete</Text>
+                <LinearGradient
+                  colors={['#EF4444', '#DC2626']}
+                  style={styles.confirmButtonGradient}
+                >
+                  <Text style={styles.confirmButtonText}>Delete</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
     </View>
@@ -201,13 +300,19 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  headerGradient: {
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: 24,
+    overflow: 'hidden',
+  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 15,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   backButton: {
     width: 40,
@@ -216,21 +321,79 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 15,
-    elevation: 2,
-    boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.08)",
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  headerTitle: { 
+    fontSize: 20, 
+    fontWeight: '700', 
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
   placeholder: { width: 40 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  item: {
+  
+  // Stats Cards
+  statsContainer: {
     flexDirection: 'row',
-    borderRadius: 12,
-    backgroundColor: '#f8f9fa',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  statIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  
+  // List Items
+  listContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  item: {
+    borderRadius: 20,
     marginBottom: 12,
+    flexDirection: 'row',
     alignItems: 'center',
     elevation: 2,
-    boxShadow: "0px 1px 3px rgba(0, 0, 0, 0.05)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    overflow: 'hidden',
+  },
+  readItem: {
+    opacity: 0.85,
   },
   itemContent: {
     flex: 1,
@@ -238,99 +401,216 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'flex-start',
   },
-  title: { fontSize: 16, fontWeight: '600', marginBottom: 4, color: '#1a1a1a' },
-  message: { fontSize: 14, color: '#555', marginBottom: 6, lineHeight: 20 },
-  time: { fontSize: 12, color: '#999' },
-  deleteBtn: { paddingVertical: 6, paddingHorizontal: 10, padding: 4 },
-  deleteText: { color: '#E53935', fontWeight: '600' },
+  iconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  itemTextContainer: {
+    flex: 1,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+    flex: 1,
+    marginRight: 8,
+  },
+  message: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  time: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  deleteBtn: {
+    padding: 16,
+  },
+  deleteBtnGradient: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   unreadBadge: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#EF4444',
     paddingVertical: 2,
     paddingHorizontal: 8,
     borderRadius: 12,
   },
   unreadText: {
     color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   tagBadge: {
-    backgroundColor: '#E8F4FD',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
     alignSelf: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   tagText: {
-    color: '#0288D1',
     fontSize: 10,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  
+  // Empty State
+  emptyContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
+    paddingHorizontal: 20,
   },
-  modalContent: {
-    width: '85%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
-    boxShadow: "0px 10px 25px rgba(0, 0, 0, 0.15)",
-    elevation: 5,
-  },
-  modalHeader: {
+  emptyCard: {
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 32,
+    borderRadius: 24,
+    width: width - 40,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
-  iconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 20,
   },
-  modalTitle: {
+  emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
+    marginBottom: 8,
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  
+  // Loading State
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#6B7280',
+    fontSize: 14,
+  },
+  
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: width - 48,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    overflow: 'hidden',
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+  },
+  modalHeaderGradient: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  modalIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBody: {
+    padding: 24,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
   },
   modalMessage: {
     fontSize: 16,
     color: '#4B5563',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
     lineHeight: 24,
+  },
+  modalWarning: {
+    fontSize: 13,
+    color: '#EF4444',
+    textAlign: 'center',
+    fontWeight: '500',
   },
   modalButtons: {
     flexDirection: 'row',
     gap: 12,
+    padding: 20,
+    paddingTop: 0,
   },
   cancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#4B5563',
+    color: '#6B7280',
   },
   confirmButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#EF4444',
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  confirmButtonGradient: {
+    paddingVertical: 14,
     alignItems: 'center',
   },
   confirmButtonText: {
