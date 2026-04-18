@@ -9,9 +9,25 @@ import { authAPI } from "../utils/api";
 import { showToast } from "../utils/ToastHelper";
 import API_URL from "../utils/api";
 import { initializeSocket, joinNotificationRoom, disconnectSocket, getSocket } from "../utils/socket";
-import { NotificationProvider } from "../context/NotificationContext";
+import { NotificationProvider, useNotifications } from "../context/NotificationContext";
+import * as Notifications from 'expo-notifications';
+
+// Listen for push notifications and refresh notifications list
+function PushNotificationHandler() {
+  const { fetchNotifications } = useNotifications();
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      fetchNotifications();
+      const { title, body } = notification.request.content;
+      showToast('info', title || 'Notification', body || '');
+    });
+    return () => subscription.remove();
+  }, [fetchNotifications]);
+  return null;
+}
 
 export default function RootLayout() {
+
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAccountDisabled, setIsAccountDisabled] = useState(false);
@@ -22,6 +38,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     const checkAuthStatus = async () => {
+  
       try {
         const disabledFlag = await AsyncStorage.getItem("accountDisabled");
         if (disabledFlag === "1") {
@@ -336,6 +353,7 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />
           <Stack.Screen name="(tabs)" />
+        <PushNotificationHandler />
           <Stack.Screen name="user" />
           <Stack.Screen name="meeting" />
           <Stack.Screen name="maintenance-screen" options={{ gestureEnabled: false }} />

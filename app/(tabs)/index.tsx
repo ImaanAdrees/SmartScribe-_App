@@ -456,7 +456,7 @@ const HomeScreen: React.FC = () => {
         <Reanimated.View entering={FadeInDown.delay(400).springify()}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Quick Access</Text>
-            <Text style={styles.sectionSubtitle}>Your recent activities</Text>
+            {/* <Text style={styles.sectionSubtitle}>Your recent activities</Text> */}
           </View>
           
           <ScrollView

@@ -7,6 +7,8 @@ import { authAPI } from "../../utils/api";
 import { initializeSocket, joinNotificationRoom } from "../../utils/socket";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { logLogin } from "../../utils/activityLogger";
+import { registerForPushNotificationsAsync } from "../../utils/pushNotifications";
+import { sendExpoPushToken } from "../../utils/api";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -38,10 +40,17 @@ export default function LoginScreen() {
 
       if (result.success) {
         await AsyncStorage.removeItem("accountDisabled");
-
+        // Register for push notifications and send token to backend
+        try {
+          const expoPushToken = await registerForPushNotificationsAsync();
+          if (expoPushToken) {
+            await sendExpoPushToken(expoPushToken);
+          }
+        } catch (e) {
+          // Ignore push registration errors
+        }
         // Log login activity
         await logLogin();
-
         showToast("success", "Login Successful 🎉", "Welcome back!", 1500);
         // Socket connection and redirection are now handled centrally 
         // by RootLayout reacting to the auth status change.

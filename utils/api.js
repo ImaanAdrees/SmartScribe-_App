@@ -500,5 +500,23 @@ export const userAPI = {
   },
 };
 
+// Send Expo push token to backend
+export const sendExpoPushToken = async (expoPushToken) => {
+  try {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_URL}/api/users/expo-push-token`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ expoPushToken }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to save Expo push token');
+    }
+    return { success: true, data };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
 
 export default API_URL;
