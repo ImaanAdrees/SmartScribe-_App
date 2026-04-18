@@ -519,4 +519,89 @@ export const sendExpoPushToken = async (expoPushToken) => {
   }
 };
 
+// --- Summary APIs ---
+export const summaryAPI = {
+
+  // Update a summary by id
+  update: async (summaryId, summaryText) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/summary/${summaryId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ summaryText }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to update summary');
+      return { success: true, summary: data.summary };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+    // Get all summaries for the logged-in user
+    getAllForUser: async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const response = await fetch(`${API_URL}/api/summary/user/all`, {
+          method: 'GET',
+          headers,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch summaries');
+        return { success: true, summaries: data.summaries };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    },
+  // Generate or fetch summary for a recording
+  generate: async (recordingId) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/summary/generate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ recordingId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to generate summary');
+      return { success: true, summary: data.summary };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Get all summaries for a recording (history)
+  getByRecording: async (recordingId) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/summary/recording/${recordingId}`, {
+        method: 'GET',
+        headers,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch summaries');
+      return { success: true, summaries: data.summaries };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Get a specific summary by id
+  getById: async (summaryId) => {
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/summary/${summaryId}`, {
+        method: 'GET',
+        headers,
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to fetch summary');
+      return { success: true, summary: data.summary };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  },
+};
+
 export default API_URL;

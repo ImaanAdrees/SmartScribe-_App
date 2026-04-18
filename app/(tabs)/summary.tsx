@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   Alert,
@@ -15,16 +15,65 @@ import {
   TouchableOpacity,
   View,
   StatusBar,
+  ActivityIndicator,
+  TextInput,
 } from "react-native";
 import { logShareDocument, logExportPDF, logSummaryGenerated } from "@/utils/activityLogger";
-
+import { summaryAPI } from "@/utils/api";
+import { useEffect } from "react";
+import { initializeSocket } from "@/utils/socket";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 const { width } = Dimensions.get("window");
 
 const SummaryScreen = () => {
+  const { recordingId } = useLocalSearchParams();
   const [activeTab, setActiveTab] = useState<"Summary" | "Transcript" | "Keywords">("Summary");
   const [isSidebarVisible, setSidebarVisible] = useState(false);
   const sidebarAnim = useRef(new Animated.Value(-width * 0.8)).current;
   const router = useRouter();
+
+  // State for summary and history
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editText, setEditText] = useState("");
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+
+  // Fetch/generate summary on mount or when recordingId changes
+  React.useEffect(() => {
+    if (!recordingId) return;
+    setLoading(true);
+    setError(null);
+    summaryAPI.generate(recordingId)
+      .then(async res => {
+        if (res.success) {
+          setSummary(res.summary);
+          // Log activity for summary generated
+          await logSummaryGenerated({ recordingId });
+        } else setError(res.error || "Failed to generate summary");
+      })
+      .catch(e => setError(e.message || "Failed to generate summary"))
+      .finally(() => setLoading(false));
+  }, [recordingId]);
+
+  // Fetch all summaries for the logged-in user (for history)
+  const fetchAllUserSummaries = React.useCallback(() => {
+    setHistoryLoading(true);
+    summaryAPI.getAllForUser()
+      .then(res => {
+        if (res.success) setHistory(res.summaries || []);
+        else setHistory([]);
+      })
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, []);
+
+  React.useEffect(() => {
+    fetchAllUserSummaries();
+  }, [fetchAllUserSummaries]);
 
   const toggleSidebar = () => {
     const toValue = isSidebarVisible ? -width * 0.8 : 0;
@@ -36,18 +85,43 @@ const SummaryScreen = () => {
     setSidebarVisible(!isSidebarVisible);
   };
 
+useEffect(() => {
+    let socket: any;
+    let userId: string | null = null;
+
+    const setupSocket = async () => {
+      socket = await initializeSocket();
+      userId = await AsyncStorage.getItem('userId');
+      if (userId) {
+        socket.emit('join_room', userId);
+      }
+      socket.on('summary_created', (data: any) => {
+        if (data.recordingId === recordingId) {
+          fetchAllUserSummaries();
+        }
+      });
+    };
+
+    setupSocket();
+
+    return () => {
+      if (socket) {
+        socket.off('summary_created');
+      }
+    };
+  }, [recordingId, fetchAllUserSummaries]);
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(
-      "Weekly Team Standup Summary:\n1. Project timeline review\n2. UI design updates\n3. API integration challenges"
-    );
+    if (!summary?.summaryText) return;
+    await Clipboard.setStringAsync(summary.summaryText);
     Alert.alert("Copied!", "Summary text copied to clipboard.");
   };
 
+
   const handleShare = async () => {
+    if (!summary?.summaryText) return;
     try {
       await Share.share({
-        message:
-          "Weekly Team Standup Summary:\n1. Project timeline review\n2. UI design updates\n3. API integration challenges",
+        message: summary.summaryText,
         subject: "Meeting Summary – SmartScribe",
       });
       await logShareDocument({ method: "native_share" });
@@ -56,32 +130,12 @@ const SummaryScreen = () => {
     }
   };
 
+
   const handleEmailShare = async () => {
-    const subject = encodeURIComponent("Meeting Summary – Weekly Team Standup");
-    const body = encodeURIComponent(
-      `Meeting Summary: Weekly Team Standup\n\n` +
-      `Date: 2023-10-15 | Duration: 45 min | Participants: 3\n\n` +
-      `Attendees:\n` +
-      `- John Doe (Product Manager)\n` +
-      `- Jane Smith (UI Designer)\n` +
-      `- Mike Johnson (Developer)\n\n` +
-      `Key Discussion Points:\n` +
-      `1. Project timeline review\n` +
-      `2. UI design updates\n` +
-      `3. Technical challenges with API integration\n\n` +
-      `Action Items:\n` +
-      `- John: Schedule meeting with client\n` +
-      `- Jane: Complete redesign by Friday\n` +
-      `- Mike: Improve API performance\n\n` +
-      `Decisions Made:\n` +
-      `- Launch delayed one week\n` +
-      `- New color scheme approved\n` +
-      `- Standups include 10-minute deep dive\n\n` +
-      `Sent via SmartScribe`
-    );
-
+    if (!summary?.summaryText) return;
+    const subject = encodeURIComponent("Meeting Summary – SmartScribe");
+    const body = encodeURIComponent(summary.summaryText);
     const emailUrl = `mailto:?subject=${subject}&body=${body}`;
-
     try {
       const canOpen = await Linking.canOpenURL(emailUrl);
       if (canOpen) {
@@ -95,36 +149,54 @@ const SummaryScreen = () => {
     }
   };
 
+
   const handleEdit = () => {
-    // Add your edit functionality here
-    Alert.alert("Edit", "Edit functionality will be implemented here");
+    setEditText(summary?.summaryText || "");
+    setEditMode(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditMode(false);
+    setEditText("");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!summary?._id) return;
+    setLoading(true);
+    const res = await summaryAPI.update(summary._id, editText);
+    if (res.success) {
+      setSummary(res.summary);
+      // Also update in history if needed
+      setHistory((prev) => prev.map((item) => item._id === res.summary._id ? res.summary : item));
+      setEditMode(false);
+    } else {
+      Alert.alert("Error", res.error || "Failed to update summary");
+    }
+    setLoading(false);
   };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
       <LinearGradient colors={["#EEF2FF", "#F9FAFB"]} style={styles.gradient}>
-
         {/* Header Card */}
         <View style={styles.headerCard}>
           <LinearGradient colors={["#6366F1", "#8B5CF6"]} style={styles.headerGradient}>
             <View style={styles.headerContent}>
               <Text style={styles.headerIcon}>📋</Text>
               <View style={styles.headerTextContainer}>
-                <Text style={styles.headerTitle}>Weekly Team Standup</Text>
+                <Text style={styles.headerTitle}>{summary?.title || "Summary"}</Text>
                 <View style={styles.metaRow}>
-                  <Ionicons name="calendar-outline" size={14} color="#E5E7EB" />
-                  <Text style={styles.metaText}>2023-10-15</Text>
+                  {/* Optionally show date/duration if available in summary */}
+                  {/* <Ionicons name="calendar-outline" size={14} color="#E5E7EB" />
+                  <Text style={styles.metaText}>{summary?.date || "--/--/----"}</Text>
                   <View style={styles.dot} />
                   <Ionicons name="time-outline" size={14} color="#E5E7EB" />
-                  <Text style={styles.metaText}>45 min</Text>
-                  <View style={styles.dot} />
-                  <Ionicons name="people-outline" size={14} color="#E5E7EB" />
-                  <Text style={styles.metaText}>3 participants</Text>
+                  <Text style={styles.metaText}>{summary?.duration || "--:--"}</Text> */}
                 </View>
                 <View style={styles.statusTag}>
                   <Ionicons name="checkmark-circle" size={14} color="#A5F3C1" />
-                  <Text style={styles.statusText}>Summarized</Text>
+                  <Text style={styles.statusText}>{summary ? "Summarized" : "No Summary"}</Text>
                 </View>
               </View>
             </View>
@@ -134,34 +206,56 @@ const SummaryScreen = () => {
         {/* Summary Content */}
         <View style={styles.summaryContainer}>
           <View style={styles.summaryHeader}>
-            <Text style={styles.summaryHeaderText}>Meeting Summary</Text>
-            <TouchableOpacity onPress={handleCopy}>
-              <Ionicons name="copy-outline" size={20} color="#6366F1" />
+            <Text style={styles.summaryHeaderText}>Summary</Text>
+            <TouchableOpacity onPress={handleCopy} disabled={!summary?.summaryText}>
+              <Ionicons name="copy-outline" size={20} color={summary?.summaryText ? "#6366F1" : "#9CA3AF"} />
             </TouchableOpacity>
           </View>
-
           <ScrollView style={styles.summaryScroll} showsVerticalScrollIndicator={false}>
-            <View>
-              <Text style={styles.sectionTitle}>Attendees</Text>
-              <Text style={styles.listText}>• John Doe (Product Manager)</Text>
-              <Text style={styles.listText}>• Jane Smith (UI Designer)</Text>
-              <Text style={styles.listText}>• Mike Johnson (Developer)</Text>
-
-              <Text style={styles.sectionTitle}>Key Discussion Points</Text>
-              <Text style={styles.listText}>1. Project timeline review</Text>
-              <Text style={styles.listText}>2. UI design updates</Text>
-              <Text style={styles.listText}>3. Technical challenges with API integration</Text>
-
-              <Text style={styles.sectionTitle}>Action Items</Text>
-              <Text style={styles.listText}>• John: Schedule meeting with client</Text>
-              <Text style={styles.listText}>• Jane: Complete redesign by Friday</Text>
-              <Text style={styles.listText}>• Mike: Improve API performance</Text>
-
-              <Text style={styles.sectionTitle}>Decisions Made</Text>
-              <Text style={styles.listText}>• Launch delayed one week</Text>
-              <Text style={styles.listText}>• New color scheme approved</Text>
-              <Text style={styles.listText}>• Standups include 10-minute deep dive</Text>
-            </View>
+            {loading ? (
+              <View style={{ alignItems: "center", marginTop: 40 }}>
+                <ActivityIndicator size="large" color="#6366F1" />
+                <Text style={{ color: "#6366F1", marginTop: 10 }}>Generating summary...</Text>
+              </View>
+            ) : error ? (
+              <View style={{ alignItems: "center", marginTop: 40 }}>
+                <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+                <Text style={{ color: "#EF4444", marginTop: 10 }}>{error}</Text>
+              </View>
+            ) : editMode ? (
+              <View>
+                <Text style={styles.sectionTitle}>Edit Summary</Text>
+                <ScrollView style={{ maxHeight: 200 }}>
+                  <TextInput
+                    style={{
+                      borderColor: '#6366F1', borderWidth: 1, borderRadius: 10, padding: 10, minHeight: 100, color: '#374151', fontSize: 13
+                    }}
+                    multiline
+                    value={editText}
+                    onChangeText={setEditText}
+                    editable={!loading}
+                  />
+                </ScrollView>
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+                  <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={handleCancelEdit} disabled={loading}>
+                    <LinearGradient colors={["#9CA3AF", "#6B7280"]} style={styles.actionGradient}>
+                      <Ionicons name="close" size={18} color="#FFF" />
+                      <Text style={styles.actionText}>Cancel</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.actionButton, { flex: 1 }]} onPress={handleSaveEdit} disabled={loading || !editText.trim()}>
+                    <LinearGradient colors={["#10B981", "#059669"]} style={styles.actionGradient}>
+                      <Ionicons name="save" size={18} color="#FFF" />
+                      <Text style={styles.actionText}>Save</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : summary?.summaryText ? (
+              <Text style={styles.listText}>{summary.summaryText}</Text>
+            ) : (
+              <Text style={styles.listText}>No summary available for this recording.</Text>
+            )}
           </ScrollView>
         </View>
 
@@ -169,7 +263,7 @@ const SummaryScreen = () => {
         <View style={styles.actionContainer}>
 
           {/* Edit button */}
-          <TouchableOpacity style={styles.actionButton} onPress={handleEdit}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleEdit} disabled={editMode || !summary?.summaryText}>
             <LinearGradient colors={["#6366F1", "#4F46E5"]} style={styles.actionGradient}>
               <Ionicons name="create-outline" size={18} color="#FFF" />
               <Text style={styles.actionText}>Edit</Text>
@@ -177,7 +271,7 @@ const SummaryScreen = () => {
           </TouchableOpacity>
 
           {/* Share button */}
-          <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+          <TouchableOpacity style={styles.actionButton} onPress={handleShare} disabled={!summary?.summaryText}>
             <LinearGradient colors={["#6C63FF", "#5B4FF0"]} style={styles.actionGradient}>
               <Ionicons name="share-social-outline" size={18} color="#FFF" />
               <Text style={styles.actionText}>Share</Text>
@@ -207,51 +301,58 @@ const SummaryScreen = () => {
           </TouchableOpacity>
 
         </View>
-
       </LinearGradient>
 
-      {/* Sidebar */}
-      <Animated.View style={[styles.sidebar, { left: sidebarAnim }]}>
+      {/* Sidebar: Summary History */}
+      <Animated.View style={[styles.sidebar, { left: sidebarAnim }]}> 
         <LinearGradient colors={["#6366F1", "#8B5CF6"]} style={styles.sidebarHeader}>
           <View style={styles.sidebarProfile}>
-            <View style={styles.profileCircle}>
+            <View className="profileCircle">
               <Text style={styles.profileText}>S</Text>
             </View>
             <View>
               <Text style={styles.profileName}>SmartScribe</Text>
-              <Text style={styles.profileSubtitle}>Voice Notes</Text>
+              <Text style={styles.profileSubtitle}>Summary History</Text>
             </View>
           </View>
           <TouchableOpacity style={styles.closeButton} onPress={toggleSidebar}>
             <Ionicons name="close" size={24} color="#FFF" />
           </TouchableOpacity>
         </LinearGradient>
-
         <ScrollView style={styles.sidebarContent}>
-          <Text style={styles.sidebarSectionTitle}>Previous Meetings</Text>
-
-          {[
-            { title: "Weekly Sync", date: "Oct 22, 2025", duration: "45 min" },
-            { title: "Sprint Planning", date: "Oct 20, 2025", duration: "60 min" },
-            { title: "Client Review", date: "Oct 18, 2025", duration: "30 min" },
-            { title: "UI Update", date: "Oct 15, 2025", duration: "45 min" },
-            { title: "Team Standup", date: "Oct 13, 2025", duration: "15 min" },
-          ].map((item, index) => (
-            <TouchableOpacity key={index} style={styles.historyItem}>
-              <View style={styles.historyIconContainer}>
-                <Ionicons name="document-text" size={20} color="#6366F1" />
-              </View>
-              <View style={styles.historyTextContainer}>
-                <Text style={styles.historyTitle}>{item.title}</Text>
-                <Text style={styles.historyMeta}>
-                  {item.date} • {item.duration}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+          <Text style={styles.sidebarSectionTitle}>Previous Summaries</Text>
+          {historyLoading ? (
+            <ActivityIndicator size="small" color="#6366F1" style={{ marginTop: 20 }} />
+          ) : history.length === 0 ? (
+            <Text style={{ color: "#6B7280", marginTop: 20 }}>No previous summaries found.</Text>
+          ) : (
+            history.map((item, idx) => (
+              <TouchableOpacity
+                key={item._id}
+                style={styles.historyItem}
+                onPress={async () => {
+                  // Fetch and show this summary
+                  setLoading(true);
+                  setError(null);
+                  const res = await summaryAPI.getById(item._id);
+                  if (res.success) setSummary(res.summary);
+                  else setError(res.error || "Failed to fetch summary");
+                  setLoading(false);
+                  toggleSidebar();
+                }}
+              >
+                <View style={styles.historyIconContainer}>
+                  <Ionicons name="document-text" size={20} color="#6366F1" />
+                </View>
+                <View style={styles.historyTextContainer}>
+                  <Text style={styles.historyTitle}>{item.title || `Summary #${idx + 1}`}</Text>
+                  <Text style={styles.historyMeta}>{item.createdAt ? new Date(item.createdAt).toLocaleString() : ""}</Text>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
         </ScrollView>
       </Animated.View>
-
       {isSidebarVisible && (
         <TouchableOpacity
           style={styles.sidebarOverlay}

@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { initializeSocket } from "@/utils/socket";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -21,6 +22,8 @@ const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 const { width } = Dimensions.get("window");
 
 const TranscriptionScreen = () => {
+
+   
   const router = useRouter();
   const { recordingId } = useLocalSearchParams();
   const [copySuccess, setCopySuccess] = useState(false);
@@ -131,6 +134,34 @@ const TranscriptionScreen = () => {
     }
   };
 
+   // Real-time update for transcription_created event
+    useEffect(() => {
+      let socket: any;
+      let userId: string | null = null;
+
+      const setupSocket = async () => {
+        socket = await initializeSocket();
+        userId = await AsyncStorage.getItem('userId');
+        if (userId) {
+          socket.emit('join_room', userId);
+        }
+        socket.on('transcription_created', (data: any) => {
+          if (data.recordingId === recordingId) {
+            setTranscription(data.transcription);
+            setLoading(false);
+          }
+        });
+      };
+
+      setupSocket();
+
+      return () => {
+        if (socket) {
+          socket.off('transcription_created');
+        }
+      };
+    }, [recordingId]);
+    
   const transcriptText = transcription?.text || "";
 
   const handleCopy = async () => {
@@ -239,10 +270,11 @@ const TranscriptionScreen = () => {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/(tabs)/summary")}
+            onPress={() => router.push({ pathname: "/(tabs)/summary", params: { recordingId } })}
+            disabled={loading || !transcription || !transcriptText.trim()}
           >
             <LinearGradient colors={["#8B5CF6", "#7C3AED"]} style={styles.actionGradient}>
-              <Ionicons name="document-text-outline" size={20} color="#FFF" />
+              <MaterialCommunityIcons name="text-box-check-outline" size={20} color="#FFF" />
               <Text style={styles.actionText}>Summarize</Text>
             </LinearGradient>
           </TouchableOpacity>

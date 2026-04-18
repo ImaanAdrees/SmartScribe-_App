@@ -22,6 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DeviceEventEmitter } from 'react-native';
 import { useAudioRecorder, AudioModule } from 'expo-audio';
 import { logRecordingStarted, logRecordingCompleted, logTranscriptionCreated } from "@/utils/activityLogger";
+import { activityAPI } from "@/utils/activityAPI";
 import Reanimated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 const { width, height } = Dimensions.get("window");
@@ -314,11 +315,14 @@ const HomeScreen: React.FC = () => {
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
-  const transcriptions = [
-    { id: "1", title: "Marketing Sync", duration: "35 min", date: "2023-10-15", status: "Summarized", icon: "briefcase" },
-    { id: "2", title: "Lecture: AI Ethics", duration: "1 hr 20 min", date: "2023-10-12", status: "Transcribed", icon: "school" },
-    { id: "3", title: "Client Onboarding Call", duration: "32 min", date: "2023-10-10", status: "Recorded", icon: "people" },
-  ];
+  // Recent activities state
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  useEffect(() => {
+    (async () => {
+      const res = await activityAPI.getRecent();
+      if (res.success) setRecentActivities(res.activities || []);
+    })();
+  }, []);
 
   const handleStopRecording = () => {
     stopTimer();
@@ -392,9 +396,9 @@ const HomeScreen: React.FC = () => {
   };
 
   const quickActions = [
-    { title: "Transcriptions", icon: "document-text-outline", color: "#6366F1", route: "/(tabs)/transcription", count: "3 saved" },
-    { title: "Summaries", icon: "document-text", color: "#8B5CF6", route: "/(tabs)/summary", count: "View & edit" },
-    { title: "Recordings", icon: "mic", color: "#A855F7", route: "/(tabs)/recordings", count: "View & edit" },
+    { title: "Transcriptions", icon: "document-text-outline", color: "#6366F1", route: "/(tabs)/transcription", count: "3 saved", iconType: "Ionicons" },
+    { title: "Summaries", icon: "text-box-check-outline", color: "#8B5CF6", route: "/(tabs)/summary", count: "View & edit", iconType: "MaterialCommunityIcons" },
+    { title: "Recordings", icon: "mic", color: "#A855F7", route: "/(tabs)/recordings", count: "View & edit", iconType: "Ionicons" },
   ];
 
   const getStatusConfig = (status: string) => {
@@ -475,7 +479,11 @@ const HomeScreen: React.FC = () => {
                   colors={[action.color, `${action.color}CC`]}
                   style={styles.cardIconBg}
                 >
-                  <Ionicons name={action.icon as any} size={28} color="#FFF" />
+                  {action.iconType === "MaterialCommunityIcons" ? (
+                    <MaterialCommunityIcons name={action.icon as any} size={28} color="#FFF" />
+                  ) : (
+                    <Ionicons name={action.icon as any} size={28} color="#FFF" />
+                  )}
                 </LinearGradient>
                 <Text style={styles.cardTitle}>{action.title}</Text>
                 <Text style={styles.cardSubtitle}>{action.count}</Text>
@@ -484,37 +492,45 @@ const HomeScreen: React.FC = () => {
           </ScrollView>
         </Reanimated.View>
 
-        {/* 📜 Recent Transcriptions */}
+        {/* 📜 Recent Activities */}
         <Reanimated.View entering={FadeInDown.delay(500).springify()}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Transcriptions</Text>
-            <TouchableOpacity onPress={() => router.push("/(tabs)/transcription")}>
-              <Text style={styles.seeAllText}>See All</Text>
-            </TouchableOpacity>
+            <Text style={styles.sectionTitle}>Recent Activities</Text>
+           
           </View>
 
-          {transcriptions.map((item, index) => {
-            const statusConfig = getStatusConfig(item.status);
+          {recentActivities.map((item, index) => {
+            // Map backend action to UI status and icon
+            let status = "Recorded", icon = "mic", color = "#7E22CE", bg = "#F3E8FF";
+            if (item.action === "Summary Generated") {
+              status = "Summarized"; icon = "checkmark-circle"; color = "#16A34A"; bg = "#DCFCE7";
+            } else if (item.action === "Transcription Created") {
+              status = "Transcribed"; icon = "text"; color = "#4F46E5"; bg = "#E0E7FF";
+            }
+            // Try to get meeting/recording name and duration from metadata or description
+            const title = item.metadata?.title || item.metadata?.recordingName || status;
+            const duration = item.metadata?.duration || item.metadata?.recordingDuration || "";
+            const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : "";
             return (
-              <TouchableOpacity key={item.id} activeOpacity={0.7}>
+              <TouchableOpacity key={item._id} activeOpacity={0.7}>
                 <LinearGradient
                   colors={["#FFFFFF", "#F9FAFB"]}
                   style={styles.listItem}
                 >
                   <View style={styles.listLeft}>
-                    <View style={[styles.listIcon, { backgroundColor: `${statusConfig.color}15` }]}>
-                      <Ionicons name={statusConfig.icon as any} size={20} color={statusConfig.color} />
+                    <View style={[styles.listIcon, { backgroundColor: `${color}15` }]}> 
+                      <Ionicons name={icon as any} size={20} color={color} />
                     </View>
                     <View>
-                      <Text style={styles.listTitle}>{item.title}</Text>
+                      <Text style={styles.listTitle}>{title}</Text>
                       <Text style={styles.listSubtitle}>
-                        {item.duration} • {item.date}
+                        {duration} • {date}
                       </Text>
                     </View>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
-                    <Text style={[styles.statusText, { color: statusConfig.color }]}>
-                      {item.status}
+                  <View style={[styles.statusBadge, { backgroundColor: bg }]}> 
+                    <Text style={[styles.statusText, { color }]}> 
+                      {status}
                     </Text>
                   </View>
                 </LinearGradient>
@@ -536,7 +552,7 @@ const HomeScreen: React.FC = () => {
             <Text style={styles.statLabel}>Transcriptions</Text>
           </LinearGradient>
           <LinearGradient colors={["#DCFCE7", "#BBF7D0"]} style={styles.statCard}>
-            <MaterialCommunityIcons name="summary" size={24} color="#16A34A" />
+            <MaterialCommunityIcons name="text-box-check-outline" size={24} color="#16A34A" />
             <Text style={styles.statNumber}>5</Text>
             <Text style={styles.statLabel}>Summaries</Text>
           </LinearGradient>

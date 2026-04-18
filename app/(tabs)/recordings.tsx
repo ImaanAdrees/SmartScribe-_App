@@ -6,7 +6,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Ionicons } from '@expo/vector-icons';
+
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
@@ -252,6 +253,7 @@ export default function RecordingsScreen() {
                 <Ionicons name="trash-outline" size={18} color="#EF4444" />
               </TouchableOpacity>
             </View>
+            
                 {/* Edit name modal */}
                 <Modal visible={editModalVisible} transparent animationType="fade">
                   <View style={styles.modalOverlay}>
@@ -315,7 +317,6 @@ export default function RecordingsScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-
             {/* Transcribe */}
             <TouchableOpacity
               style={styles.btnFlex}
@@ -330,6 +331,20 @@ export default function RecordingsScreen() {
                 <Text style={styles.primaryBtnText}>
                   {isTranscribing ? 'Wait...' : 'Transcribe'}
                 </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Summarize */}
+            <TouchableOpacity
+              style={styles.btnFlex}
+              onPress={() => router.push({ pathname: '/(tabs)/summary', params: { recordingId: item._id } })}
+            >
+              <LinearGradient
+                colors={['#10B981', '#059669']}
+                style={styles.primaryBtn}
+              >
+                <MaterialCommunityIcons name="text-box-check-outline" size={14} color="#FFF" />
+                <Text style={styles.primaryBtnText}>Summarize</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
