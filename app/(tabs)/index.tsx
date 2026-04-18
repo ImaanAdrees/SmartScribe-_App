@@ -23,6 +23,7 @@ import { DeviceEventEmitter } from 'react-native';
 import { useAudioRecorder, AudioModule } from 'expo-audio';
 import { logRecordingStarted, logRecordingCompleted, logTranscriptionCreated } from "@/utils/activityLogger";
 import { activityAPI } from "@/utils/activityAPI";
+import { statsAPI } from "@/utils/statsAPI";
 import Reanimated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
 const { width, height } = Dimensions.get("window");
@@ -317,11 +318,23 @@ const HomeScreen: React.FC = () => {
 
   // Recent activities state
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  // Stats state
+  const [stats, setStats] = useState({ recordings: 0, transcriptions: 0, summaries: 0 });
+
+  // Fetch stats and activities
+  const fetchStatsAndActivities = async () => {
+    const [statsRes, activitiesRes] = await Promise.all([
+      statsAPI.getUserStats(),
+      activityAPI.getRecent(),
+    ]);
+    if (statsRes.success) setStats(statsRes.stats);
+    if (activitiesRes.success) setRecentActivities(activitiesRes.activities || []);
+  };
+
   useEffect(() => {
-    (async () => {
-      const res = await activityAPI.getRecent();
-      if (res.success) setRecentActivities(res.activities || []);
-    })();
+    fetchStatsAndActivities();
+    const interval = setInterval(fetchStatsAndActivities, 10000); // 10 seconds
+    return () => clearInterval(interval);
   }, []);
 
   const handleStopRecording = () => {
@@ -396,7 +409,7 @@ const HomeScreen: React.FC = () => {
   };
 
   const quickActions = [
-    { title: "Transcriptions", icon: "document-text-outline", color: "#6366F1", route: "/(tabs)/transcription", count: "3 saved", iconType: "Ionicons" },
+    { title: "Transcriptions", icon: "document-text-outline", color: "#6366F1", route: "/(tabs)/transcription", count: "transcription", iconType: "Ionicons" },
     { title: "Summaries", icon: "text-box-check-outline", color: "#8B5CF6", route: "/(tabs)/summary", count: "View & edit", iconType: "MaterialCommunityIcons" },
     { title: "Recordings", icon: "mic", color: "#A855F7", route: "/(tabs)/recordings", count: "View & edit", iconType: "Ionicons" },
   ];
@@ -411,6 +424,8 @@ const HomeScreen: React.FC = () => {
         return { bg: "#F3E8FF", color: "#7E22CE", icon: "mic" };
     }
   };
+
+  // (Removed: stats useEffect, now handled by fetchStatsAndActivities)
 
   return (
     <SafeAreaView style={styles.container}>
@@ -543,17 +558,17 @@ const HomeScreen: React.FC = () => {
         <Reanimated.View entering={FadeInDown.delay(600).springify()} style={styles.statsContainer}>
           <LinearGradient colors={["#EEF2FF", "#E0E7FF"]} style={styles.statCard}>
             <MaterialCommunityIcons name="microphone" size={24} color="#4F46E5" />
-            <Text style={styles.statNumber}>12</Text>
+            <Text style={styles.statNumber}>{stats.recordings}</Text>
             <Text style={styles.statLabel}>Total Recordings</Text>
           </LinearGradient>
           <LinearGradient colors={["#F3E8FF", "#E9D5FF"]} style={styles.statCard}>
             <Ionicons name="document-text" size={24} color="#8B5CF6" />
-            <Text style={styles.statNumber}>8</Text>
+            <Text style={styles.statNumber}>{stats.transcriptions}</Text>
             <Text style={styles.statLabel}>Transcriptions</Text>
           </LinearGradient>
           <LinearGradient colors={["#DCFCE7", "#BBF7D0"]} style={styles.statCard}>
             <MaterialCommunityIcons name="text-box-check-outline" size={24} color="#16A34A" />
-            <Text style={styles.statNumber}>5</Text>
+            <Text style={styles.statNumber}>{stats.summaries}</Text>
             <Text style={styles.statLabel}>Summaries</Text>
           </LinearGradient>
         </Reanimated.View>
