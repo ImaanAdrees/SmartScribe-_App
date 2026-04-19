@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { TextInput } from 'react-native';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Modal, Alert, DeviceEventEmitter } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Ionicons } from '@expo/vector-icons';
+
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
@@ -15,6 +17,41 @@ export default function RecordingsScreen() {
   const [recordings, setRecordings] = useState<any[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [transcribingId, setTranscribingId] = useState<string | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [toEdit, setToEdit] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+    const handleEdit = (item: any) => {
+      setToEdit(item);
+      setEditName(item.name || item.originalName || item.filename || '');
+      setEditModalVisible(true);
+    };
+
+    const confirmEdit = async () => {
+      if (!toEdit || !editName.trim()) return;
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        const res = await fetch(`${API_URL}/api/recording/${toEdit._id}/rename`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ name: editName.trim() }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          setRecordings((prev) => prev.map((r) => r._id === toEdit._id ? { ...r, name: editName.trim() } : r));
+          setEditModalVisible(false);
+          setToEdit(null);
+          setEditName('');
+        } else {
+          Alert.alert('Rename failed', data.error || 'Could not rename');
+        }
+      } catch (err) {
+        console.error('Rename error', err);
+        Alert.alert('Rename failed', 'Network error');
+      }
+    };
   const player = useAudioPlayer('');
   const status = useAudioPlayerStatus(player);
 
@@ -208,9 +245,54 @@ export default function RecordingsScreen() {
               )}
             </View>
 
-            <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteRecording(item)}>
-              <Ionicons name="trash-outline" size={18} color="#EF4444" />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => handleEdit(item)}>
+                <Ionicons name="pencil-outline" size={18} color="#6366F1" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteRecording(item)}>
+                <Ionicons name="trash-outline" size={18} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+            
+                {/* Edit name modal */}
+                <Modal visible={editModalVisible} transparent animationType="fade">
+                  <View style={styles.modalOverlay}>
+                    <View style={styles.modalBox}>
+                      <View style={styles.modalIconWrap}>
+                        <Ionicons name="pencil" size={28} color="#6366F1" />
+                      </View>
+                      <Text style={styles.modalTitle}>Edit Recording Name</Text>
+                      <TextInput
+                        style={{
+                          borderWidth: 1,
+                          borderColor: '#E5E7EB',
+                          borderRadius: 8,
+                          padding: 10,
+                          marginVertical: 12,
+                          fontSize: 16,
+                          color: '#1F2937',
+                          backgroundColor: '#FFF',
+                        }}
+                        value={editName}
+                        onChangeText={setEditName}
+                        placeholder="Enter new name"
+                        autoFocus
+                        maxLength={60}
+                      />
+                      <View style={styles.modalButtons}>
+                        <TouchableOpacity
+                          style={styles.modalCancel}
+                          onPress={() => { setEditModalVisible(false); setToEdit(null); setEditName(''); }}
+                        >
+                          <Text style={styles.modalCancelText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.modalDelete} onPress={confirmEdit}>
+                          <Text style={styles.modalDeleteText}>Save</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+                </Modal>
           </View>
 
           {/* Bottom Row: action buttons */}
@@ -235,14 +317,6 @@ export default function RecordingsScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
-            {/* Replay */}
-            <TouchableOpacity style={styles.btnFlex} onPress={() => replayRecording(item)}>
-              <View style={styles.secondaryBtn}>
-                <Ionicons name="refresh" size={14} color="#6366F1" />
-                <Text style={styles.secondaryBtnText}>Replay</Text>
-              </View>
-            </TouchableOpacity>
-
             {/* Transcribe */}
             <TouchableOpacity
               style={styles.btnFlex}
@@ -257,6 +331,20 @@ export default function RecordingsScreen() {
                 <Text style={styles.primaryBtnText}>
                   {isTranscribing ? 'Wait...' : 'Transcribe'}
                 </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Summarize */}
+            <TouchableOpacity
+              style={styles.btnFlex}
+              onPress={() => router.push({ pathname: '/(tabs)/summary', params: { recordingId: item._id } })}
+            >
+              <LinearGradient
+                colors={['#10B981', '#059669']}
+                style={styles.primaryBtn}
+              >
+                <MaterialCommunityIcons name="text-box-check-outline" size={14} color="#FFF" />
+                <Text style={styles.primaryBtnText}>Summarize</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>

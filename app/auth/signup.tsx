@@ -12,7 +12,8 @@ import {
   SafeAreaView,
 } from "react-native";
 import { Link, router } from "expo-router";
-import { authAPI } from "../../utils/api";
+import { authAPI, sendExpoPushToken } from "../../utils/api";
+import { registerForPushNotificationsAsync } from "../../utils/pushNotifications";
 import { showToast } from "../../utils/ToastHelper";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -312,6 +313,15 @@ export default function SignupScreen() {
       const result = await authAPI.sendSignupOtp(email);
 
       if (result.success) {
+        // Register for push notifications and send token to backend
+        try {
+          const expoPushToken = await registerForPushNotificationsAsync();
+          if (expoPushToken) {
+            await sendExpoPushToken(expoPushToken);
+          }
+        } catch (e) {
+          // Ignore push registration errors
+        }
         showToast("success", "OTP sent", "Check your email for verification code");
         router.push("/auth/signup-otp");
       } else {

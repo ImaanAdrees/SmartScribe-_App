@@ -1,4 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
+import { initializeSocket } from "@/utils/socket";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -21,6 +22,8 @@ const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 const { width } = Dimensions.get("window");
 
 const TranscriptionScreen = () => {
+
+   
   const router = useRouter();
   const { recordingId } = useLocalSearchParams();
   const [copySuccess, setCopySuccess] = useState(false);
@@ -33,12 +36,38 @@ const TranscriptionScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
 
+  // Refresh both history and transcription when recordingId changes
   useEffect(() => {
     fetchHistory();
     if (recordingId) {
       fetchTranscription(recordingId);
     }
   }, [recordingId]);
+
+  // Listen for silent updates to recording name or deletion
+  useEffect(() => {
+    const subscription = (event: any) => {
+      if (event?.type === 'RECORDING_RENAMED' && event.id === recordingId) {
+        // Update the name in the header and history
+        setRecording((prev: any) => prev ? { ...prev, name: event.name } : prev);
+        setHistory((prev: any[]) => prev.map(r => r._id === event.id ? { ...r, name: event.name } : r));
+      } else if (event?.type === 'RECORDING_DELETED' && event.id === recordingId) {
+        // If the current recording is deleted, go back to history
+        router.replace('/(tabs)/recordings');
+      }
+    };
+    // @ts-ignore
+    if (global && global.addEventListener) {
+      // For web/Expo Go
+      global.addEventListener('RECORDING_EVENT', subscription);
+    }
+    // For native, you could use DeviceEventEmitter or a context event bus
+    return () => {
+      if (global && global.removeEventListener) {
+        global.removeEventListener('RECORDING_EVENT', subscription);
+      }
+    };
+  }, [recordingId, router]);
 
   const fetchHistory = async () => {
     try {
@@ -105,6 +134,34 @@ const TranscriptionScreen = () => {
     }
   };
 
+   // Real-time update for transcription_created event
+    useEffect(() => {
+      let socket: any;
+      let userId: string | null = null;
+
+      const setupSocket = async () => {
+        socket = await initializeSocket();
+        userId = await AsyncStorage.getItem('userId');
+        if (userId) {
+          socket.emit('join_room', userId);
+        }
+        socket.on('transcription_created', (data: any) => {
+          if (data.recordingId === recordingId) {
+            setTranscription(data.transcription);
+            setLoading(false);
+          }
+        });
+      };
+
+      setupSocket();
+
+      return () => {
+        if (socket) {
+          socket.off('transcription_created');
+        }
+      };
+    }, [recordingId]);
+    
   const transcriptText = transcription?.text || "";
 
   const handleCopy = async () => {
@@ -202,21 +259,6 @@ const TranscriptionScreen = () => {
         {/* 🔹 Action Buttons */}
         <View style={styles.actionContainer}>
           <TouchableOpacity
-            style={[styles.actionButton, !transcriptText && { opacity: 0.5 }]}
-            disabled={!transcriptText}
-            onPress={async () => {
-              // Log export PDF activity
-              await logExportPDF({ format: "pdf" });
-              router.push("/meeting/pdfexport");
-            }}
-          >
-            <LinearGradient colors={["#10B981", "#059669"]} style={styles.actionGradient}>
-              <Ionicons name="download-outline" size={20} color="#FFF" />
-              <Text style={styles.actionText}>Export PDF</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={styles.actionButton}
             onPress={toggleSidebar}
           >
@@ -228,11 +270,12 @@ const TranscriptionScreen = () => {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => router.push("/(tabs)/summary")}
+            onPress={() => router.push({ pathname: "/(tabs)/summary", params: { recordingId } })}
+            disabled={loading || !transcription || !transcriptText.trim()}
           >
             <LinearGradient colors={["#8B5CF6", "#7C3AED"]} style={styles.actionGradient}>
-              <Ionicons name="document-text-outline" size={20} color="#FFF" />
-              <Text style={styles.actionText}>Summary</Text>
+              <MaterialCommunityIcons name="text-box-check-outline" size={20} color="#FFF" />
+              <Text style={styles.actionText}>Summarize</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
