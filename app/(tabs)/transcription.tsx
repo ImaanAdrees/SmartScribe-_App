@@ -280,15 +280,6 @@ const TranscriptionScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* 💬 Floating Chat Button */}
-        <TouchableOpacity
-          style={styles.chatButton}
-          onPress={() => router.push("/meeting/smartsearch")}
-        >
-          <LinearGradient colors={["#8B5CF6", "#6366F1"]} style={styles.chatGradient}>
-            <Ionicons name="chatbubble-ellipses-outline" size={24} color="#FFF" />
-          </LinearGradient>
-        </TouchableOpacity>
 
         {/* ✅ Copy Toast */}
         {copySuccess && (

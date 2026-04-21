@@ -11,6 +11,7 @@ import { registerForPushNotificationsAsync } from "../../utils/pushNotifications
 import { sendExpoPushToken } from "../../utils/api";
 
 export default function LoginScreen() {
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

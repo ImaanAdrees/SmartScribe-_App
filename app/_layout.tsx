@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Dimensions, Platform } from "react-native";
+import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity } from "react-native";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import SplashScreen from "./SplashScreen";
 import Toast from "react-native-toast-message";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -9,22 +11,9 @@ import { authAPI } from "../utils/api";
 import { showToast } from "../utils/ToastHelper";
 import API_URL from "../utils/api";
 import { initializeSocket, joinNotificationRoom, disconnectSocket, getSocket } from "../utils/socket";
-import { NotificationProvider, useNotifications } from "../context/NotificationContext";
-import * as Notifications from 'expo-notifications';
-
-// Listen for push notifications and refresh notifications list
-function PushNotificationHandler() {
-  const { fetchNotifications } = useNotifications();
-  useEffect(() => {
-    const subscription = Notifications.addNotificationReceivedListener((notification) => {
-      fetchNotifications();
-      const { title, body } = notification.request.content;
-      showToast('info', title || 'Notification', body || '');
-    });
-    return () => subscription.remove();
-  }, [fetchNotifications]);
-  return null;
-}
+import { NotificationProvider } from "../context/NotificationContext";
+import PushNotificationHandler from "../components/PushNotificationHandler";
+import Constants from "expo-constants";
 
 export default function RootLayout() {
 
@@ -104,13 +93,10 @@ export default function RootLayout() {
 
   // Check Maintenance Status
   useEffect(() => {
-    // Check Maintenance Status
-    // Check Maintenance Status
     const checkMaintenance = async () => {
       try {
         const response = await fetch(`${API_URL}/api/maintenance/check-maintenance`);
         const data = await response.json();
-        // Backend now delays setting true, so we can trust this value
         setIsMaintenance(!!data.maintenanceMode);
       } catch (error) {
         console.error("Error checking maintenance status:", error);
@@ -129,11 +115,9 @@ export default function RootLayout() {
       console.log("[RootLayout] Real-time maintenance update:", data);
 
       if (data.maintenanceMode) {
-        // Maintenance confirmed ON (after delay)
         setIsMaintenance(true);
         setMaintenanceCountdown(null);
       } else {
-        // Maintenance OFF
         setIsMaintenance(false);
         setMaintenanceCountdown(null);
       }
@@ -173,7 +157,6 @@ export default function RootLayout() {
       }, 1000);
       return () => clearTimeout(timer);
     } else if (maintenanceCountdown === 0) {
-      // Countdown finished, activate maintenance mode
       setIsMaintenance(true);
       setMaintenanceCountdown(null);
     }
@@ -189,7 +172,6 @@ export default function RootLayout() {
 
     console.log("[RootLayout] Auth Sync - Path:", segments.join("/"), "| isLoggedIn:", isLoggedIn, "| isMaintenance:", isMaintenance);
 
-    // Maintenance Redirection Logic
     const inMaintenance = segments[0] === "maintenance-screen";
 
     if (isMaintenance) {
@@ -197,9 +179,8 @@ export default function RootLayout() {
         console.log("[RootLayout] System in maintenance, redirecting to maintenance screen");
         router.replace("/maintenance-screen");
       }
-      return; // Stop further checks if in maintenance
+      return; 
     } else if (inMaintenance) {
-      // If maintenance is OFF but we are on the screen, redirect back
       console.log("[RootLayout] Maintenance ended, redirecting back");
       router.replace(isLoggedIn ? "/(tabs)" : "/auth/login");
       return;
@@ -228,7 +209,6 @@ export default function RootLayout() {
     if (isLoggedIn) {
       const setupSocket = async () => {
         try {
-          // Get userId from storage
           const userId = await AsyncStorage.getItem("userId");
           if (userId) {
             console.log("[RootLayout] Instant Socket Setup - User ID:", userId);
@@ -236,7 +216,6 @@ export default function RootLayout() {
             await joinNotificationRoom(userId);
             console.log("[RootLayout] Socket connected and joined user room.");
           } else {
-            // Fallback to userData if userId is missing
             const userData = await AsyncStorage.getItem("userData");
             if (userData) {
               const parsed = JSON.parse(userData);
@@ -350,10 +329,10 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <NotificationProvider isLoggedIn={isLoggedIn}>
+        <PushNotificationHandler />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="auth" />
           <Stack.Screen name="(tabs)" />
-        <PushNotificationHandler />
           <Stack.Screen name="user" />
           <Stack.Screen name="meeting" />
           <Stack.Screen name="maintenance-screen" options={{ gestureEnabled: false }} />
@@ -361,7 +340,6 @@ export default function RootLayout() {
         </Stack>
         <Toast />
 
-        {/* Maintenance Warning Overlay */}
         {maintenanceCountdown !== null && maintenanceCountdown > 0 && (
           <View style={styles.overlay}>
             <View style={styles.warningBox}>
@@ -374,6 +352,31 @@ export default function RootLayout() {
             </View>
           </View>
         )}
+
+        {/* 💬 Global Floating AI Chat Button */}
+        {(() => {
+          const currentSegment = segments[0];
+          const hideOnSegments = ['auth', 'account-disabled', 'SplashScreen', 'maintenance-screen', 'aichat'];
+          const shouldHide = !isLoggedIn || isMaintenance || hideOnSegments.includes(currentSegment);
+          
+          if (shouldHide) return null;
+
+          return (
+            <TouchableOpacity
+              style={styles.globalChatButton}
+              onPress={() => router.push("/aichat")}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={["#6366F1", "#8B5CF6"]}
+                style={styles.globalChatGradient}
+              >
+                <Ionicons name="chatbubbles" size={28} color="#FFF" />
+                <View style={styles.notificationDot} />
+              </LinearGradient>
+            </TouchableOpacity>
+          );
+        })()}
       </NotificationProvider>
     </SafeAreaProvider>
   );
@@ -418,5 +421,38 @@ const styles = StyleSheet.create({
   subText: {
     color: '#cccccc',
     fontSize: 12,
+  },
+  globalChatButton: {
+    position: 'absolute',
+    bottom: 90, // Positioned above the tab bar if active, or just near bottom
+    right: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    elevation: 10,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 99999,
+  },
+  globalChatGradient: {
+    flex: 1,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFF',
   },
 });

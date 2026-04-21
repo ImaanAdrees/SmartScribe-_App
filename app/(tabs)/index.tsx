@@ -574,15 +574,6 @@ const HomeScreen: React.FC = () => {
         </Reanimated.View>
       </ScrollView>
 
-      {/* 💬 Floating Chat Button */}
-      <TouchableOpacity style={styles.chatButton} onPress={() => router.push("/meeting/smartsearch")}>
-        <LinearGradient
-          colors={["#6366F1", "#4F46E5"]}
-          style={styles.chatButtonGradient}
-        >
-          <Ionicons name="chatbubbles" size={26} color="#FFF" />
-        </LinearGradient>
-      </TouchableOpacity>
 
       {/* 🎞 Recording Modal */}
       <Modal transparent visible={showRecordModal} animationType="none">
