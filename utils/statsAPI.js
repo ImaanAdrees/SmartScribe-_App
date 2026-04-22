@@ -30,6 +30,11 @@ export const statsAPI = {
           transcriptions: transcriptions.length,
           summaries: summaries.length,
         },
+        items: {
+          recordings,
+          transcriptions,
+          summaries,
+        }
       };
     } catch (error) {
       return { success: false, error: error.message };

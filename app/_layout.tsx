@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity } from "react-native";
+import React, { useEffect, useState, useRef } from "react";
+import { View, Text, StyleSheet, Dimensions, Platform, TouchableOpacity, Animated, PanResponder } from "react-native";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack, useRouter, useSegments } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +24,29 @@ export default function RootLayout() {
   const [maintenanceCountdown, setMaintenanceCountdown] = useState<number | null>(null);
   const router = useRouter();
   const segments = useSegments();
+
+  // Draggable logic for AI Chat Button
+  const pan = useRef(new Animated.ValueXY()).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (e, gestureState) => {
+        return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        pan.setOffset({
+          x: (pan.x as any)._value,
+          y: (pan.y as any)._value,
+        });
+      },
+      onPanResponderMove: Animated.event(
+        [null, { dx: pan.x, dy: pan.y }],
+        { useNativeDriver: false }
+      ),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      },
+    })
+  ).current;
 
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -362,19 +385,27 @@ export default function RootLayout() {
           if (shouldHide) return null;
 
           return (
-            <TouchableOpacity
-              style={styles.globalChatButton}
-              onPress={() => router.push("/aichat")}
-              activeOpacity={0.8}
+            <Animated.View
+              {...panResponder.panHandlers}
+              style={[
+                styles.globalChatButton,
+                { transform: [{ translateX: pan.x }, { translateY: pan.y }] }
+              ]}
             >
-              <LinearGradient
-                colors={["#6366F1", "#8B5CF6"]}
-                style={styles.globalChatGradient}
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={() => router.push("/aichat")}
+                activeOpacity={0.8}
               >
-                <Ionicons name="chatbubbles" size={28} color="#FFF" />
-                <View style={styles.notificationDot} />
-              </LinearGradient>
-            </TouchableOpacity>
+                <LinearGradient
+                  colors={["#6366F1", "#8B5CF6"]}
+                  style={styles.globalChatGradient}
+                >
+                  <Ionicons name="chatbubbles" size={28} color="#FFF" />
+                  <View style={styles.notificationDot} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
           );
         })()}
       </NotificationProvider>

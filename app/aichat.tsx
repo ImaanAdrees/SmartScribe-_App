@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAudioRecorder, AudioModule } from 'expo-audio';
 import Reanimated, { FadeIn, SlideInRight, SlideInLeft } from 'react-native-reanimated';
+import { generateUniqueId } from './utils/uniqueId';
 
 const { width } = Dimensions.get('window');
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
@@ -35,8 +37,8 @@ const AIChatScreen = () => {
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      text: "Hello! I'm your SmartScribe AI. Ask me anything about your meeting transcripts!",
+      id: generateUniqueId(),
+      text: "Hello! I'm your SmartScribe AI Assistant. Ask me anything about your meeting transcripts!",
       sender: 'ai',
       timestamp: new Date(),
     },
@@ -45,7 +47,9 @@ const AIChatScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const isActuallyRecording = useRef(false);
+  const recordingStartTime = useRef(0);
   const flatListRef = useRef<FlatList>(null);
+  const inputRef = useRef<TextInput>(null);
 
   // Audio recorder setup
   const recorder = useAudioRecorder({
@@ -64,9 +68,21 @@ const AIChatScreen = () => {
     }
   }, [messages]);
 
+  // Scroll to bottom when keyboard opens
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    });
+    return () => {
+      keyboardDidShowListener.remove();
+    };
+  }, []);
+
   const addMessage = (text: string, sender: 'user' | 'ai') => {
     const newMessage: Message = {
-      id: Date.now().toString(),
+      id: generateUniqueId(),
       text,
       sender,
       timestamp: new Date(),
@@ -130,6 +146,7 @@ const AIChatScreen = () => {
 
       setIsRecording(true);
       await recorder.record();
+      recordingStartTime.current = Date.now();
       isActuallyRecording.current = true;
     } catch (err) {
       setIsRecording(false);
@@ -140,16 +157,24 @@ const AIChatScreen = () => {
   const stopRecordingAndSend = async () => {
     if (!isActuallyRecording.current) {
       // Small delay to allow startRecording to finish its async work if user tapped quickly
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300));
       if (!isActuallyRecording.current) {
         setIsRecording(false);
         return;
       }
     }
 
+    // Ensure at least 500ms has passed since starting to avoid native stop crash
+    const elapsed = Date.now() - recordingStartTime.current;
+    if (elapsed < 500) {
+      await new Promise(resolve => setTimeout(resolve, 500 - elapsed));
+    }
+
     setIsRecording(false);
     try {
-      await recorder.stop();
+      if (recorder.isRecording) {
+        await recorder.stop();
+      }
       isActuallyRecording.current = false;
       const uri = recorder.uri;
       if (!uri) return;
@@ -235,50 +260,50 @@ const AIChatScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <LinearGradient colors={['#6366F1', '#4F46E5']} style={styles.header}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>SmartScribe AI</Text>
-            <View style={styles.onlineBadge}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Always Online</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.infoButton}>
-            <Ionicons name="information-circle-outline" size={24} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
-
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
-
-      {isLoading && (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#6366F1" />
-          <Text style={styles.loadingText}>AI is thinking...</Text>
-        </View>
-      )}
-
       <KeyboardAvoidingView
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <View style={[styles.inputContainer, { marginBottom: insets.bottom + 10 }]}>
-          <TouchableOpacity style={styles.attachButton}>
-            <Ionicons name="add" size={24} color="#6B7280" />
-          </TouchableOpacity>
+        <LinearGradient colors={['#6366F1', '#4F46E5']} style={styles.header}>
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="chevron-back" size={24} color="#FFF" />
+            </TouchableOpacity>
+            <View style={styles.headerTitleAbsoluteContainer} pointerEvents="none">
+              <Text style={styles.headerTitle}>SmartScribe AI Assistant</Text>
+              <View style={styles.onlineBadge}>
+                <View style={styles.onlineDot} />
+                <Text style={styles.onlineText}>Always Online</Text>
+              </View>
+            </View>
+            <View style={{width: 24}} />
+          </View>
+        </LinearGradient>
+
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onLayout={() => {
+            flatListRef.current?.scrollToEnd({ animated: false });
+          }}
+        />
+
+        {isLoading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#6366F1" />
+            <Text style={styles.loadingText}>AI is thinking...</Text>
+          </View>
+        )}
+
+        <View style={[styles.inputContainer, { marginBottom: Platform.OS === 'ios' ? 10 : 20 }]}>
           
           <TextInput
+            ref={inputRef}
             style={styles.textInput}
             placeholder="Ask about your transcripts..."
             value={inputText}
@@ -328,12 +353,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    position: 'relative',
+    minHeight: 56,
   },
   backButton: {
     padding: 5,
+    zIndex: 2,
   },
-  headerTitleContainer: {
+  headerTitleAbsoluteContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
   },
   headerTitle: {
     color: '#FFF',
@@ -364,6 +399,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingTop: 20,
     paddingBottom: 20,
+    flexGrow: 1,
   },
   messageWrapper: {
     flexDirection: 'row',
@@ -390,7 +426,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 20,
-    flexShrink: 1, // Added to ensure the bubble shrinks and text wraps
+    flexShrink: 1,
   },
   aiBubble: {
     borderBottomLeftRadius: 4,

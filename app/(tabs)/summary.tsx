@@ -289,9 +289,12 @@ useEffect(() => {
           {/* Export PDF button */}
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={async () => {
-              await logExportPDF({ format: "pdf" });
-              router.push("/meeting/pdfexport");
+            disabled={!summary?._id}
+            onPress={() => {
+              router.push({
+                pathname: "/meeting/pdfexport",
+                params: { summaryId: summary._id, title: summary.title }
+              });
             }}
           >
             <LinearGradient colors={["#10B981", "#059669"]} style={styles.actionGradient}>

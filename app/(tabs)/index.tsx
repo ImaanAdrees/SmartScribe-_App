@@ -320,6 +320,26 @@ const HomeScreen: React.FC = () => {
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   // Stats state
   const [stats, setStats] = useState({ recordings: 0, transcriptions: 0, summaries: 0 });
+  const [statsItems, setStatsItems] = useState({ recordings: [], transcriptions: [], summaries: [] });
+  const [selectedStat, setSelectedStat] = useState<"recordings" | "transcriptions" | "summaries" | null>(null);
+  const statPopupAnim = useRef(new Animated.Value(0)).current;
+
+  const openStatPopup = (type: "recordings" | "transcriptions" | "summaries") => {
+    setSelectedStat(type);
+    Animated.timing(statPopupAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeStatPopup = () => {
+    Animated.timing(statPopupAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setSelectedStat(null));
+  };
 
   // Fetch stats and activities
   const fetchStatsAndActivities = async () => {
@@ -327,7 +347,12 @@ const HomeScreen: React.FC = () => {
       statsAPI.getUserStats(),
       activityAPI.getRecent(),
     ]);
-    if (statsRes.success) setStats(statsRes.stats);
+    if (statsRes.success) {
+      setStats(statsRes.stats);
+      if (statsRes.items) {
+        setStatsItems(statsRes.items);
+      }
+    }
     if (activitiesRes.success) setRecentActivities(activitiesRes.activities || []);
   };
 
@@ -556,24 +581,71 @@ const HomeScreen: React.FC = () => {
 
         {/* Stats Section */}
         <Reanimated.View entering={FadeInDown.delay(600).springify()} style={styles.statsContainer}>
-          <LinearGradient colors={["#EEF2FF", "#E0E7FF"]} style={styles.statCard}>
-            <MaterialCommunityIcons name="microphone" size={24} color="#4F46E5" />
-            <Text style={styles.statNumber}>{stats.recordings}</Text>
-            <Text style={styles.statLabel}>Total Recordings</Text>
-          </LinearGradient>
-          <LinearGradient colors={["#F3E8FF", "#E9D5FF"]} style={styles.statCard}>
-            <Ionicons name="document-text" size={24} color="#8B5CF6" />
-            <Text style={styles.statNumber}>{stats.transcriptions}</Text>
-            <Text style={styles.statLabel}>Transcriptions</Text>
-          </LinearGradient>
-          <LinearGradient colors={["#DCFCE7", "#BBF7D0"]} style={styles.statCard}>
-            <MaterialCommunityIcons name="text-box-check-outline" size={24} color="#16A34A" />
-            <Text style={styles.statNumber}>{stats.summaries}</Text>
-            <Text style={styles.statLabel}>Summaries</Text>
-          </LinearGradient>
+          <TouchableOpacity activeOpacity={0.8} style={{ flex: 1 }} onPress={() => openStatPopup("recordings")}>
+            <LinearGradient colors={["#EEF2FF", "#E0E7FF"]} style={styles.statCard}>
+              <MaterialCommunityIcons name="microphone" size={24} color="#4F46E5" />
+              <Text style={styles.statNumber}>{stats.recordings}</Text>
+              <Text style={styles.statLabel}>Total Recordings</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.8} style={{ flex: 1 }} onPress={() => openStatPopup("transcriptions")}>
+            <LinearGradient colors={["#F3E8FF", "#E9D5FF"]} style={styles.statCard}>
+              <Ionicons name="document-text" size={24} color="#8B5CF6" />
+              <Text style={styles.statNumber}>{stats.transcriptions}</Text>
+              <Text style={styles.statLabel}>Transcriptions</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.8} style={{ flex: 1 }} onPress={() => openStatPopup("summaries")}>
+            <LinearGradient colors={["#DCFCE7", "#BBF7D0"]} style={styles.statCard}>
+              <MaterialCommunityIcons name="text-box-check-outline" size={24} color="#16A34A" />
+              <Text style={styles.statNumber}>{stats.summaries}</Text>
+              <Text style={styles.statLabel}>Summaries</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </Reanimated.View>
       </ScrollView>
 
+
+      {/* 📊 Stats Detail Modal */}
+      <Modal transparent visible={selectedStat !== null} animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View style={[styles.statsModalContent, { opacity: statPopupAnim }]}>
+            <View style={styles.statsModalHeader}>
+              <Text style={styles.statsModalTitle}>
+                {selectedStat === "recordings" ? "Your Recordings" : selectedStat === "transcriptions" ? "Your Transcriptions" : "Your Summaries"}
+              </Text>
+              <TouchableOpacity onPress={closeStatPopup} style={{ padding: 4 }}>
+                <Ionicons name="close" size={24} color="#1F2937" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.statsModalList} showsVerticalScrollIndicator={false}>
+              {selectedStat && statsItems[selectedStat].length === 0 ? (
+                <Text style={styles.emptyText}>No items found.</Text>
+              ) : (
+                selectedStat && statsItems[selectedStat].map((item: any, idx: number) => {
+                  let itemName = "Untitled";
+                  if (selectedStat === "recordings") itemName = item.originalName || item.name || `Recording ${idx + 1}`;
+                  if (selectedStat === "transcriptions") itemName = item.recordingId?.originalName || item.recordingId?.name || item.title || `Transcription ${idx + 1}`;
+                  if (selectedStat === "summaries") itemName = item.recordingId?.originalName || item.recordingId?.name || item.title || `Summary ${idx + 1}`;
+
+                  return (
+                    <View key={item._id} style={styles.statsModalItem}>
+                      <View style={styles.statsModalIconBg}>
+                         <Ionicons 
+                            name={selectedStat === "recordings" ? "mic" : selectedStat === "transcriptions" ? "document-text" : "checkmark-circle"} 
+                            size={18} 
+                            color="#6366F1" 
+                          />
+                      </View>
+                      <Text style={styles.statsModalItemText} numberOfLines={1}>{itemName}</Text>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* 🎞 Recording Modal */}
       <Modal transparent visible={showRecordModal} animationType="none">
@@ -902,5 +974,68 @@ const styles = StyleSheet.create({
     width: 3,
     borderRadius: 2,
     backgroundColor: "rgba(255,255,255,0.6)",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statsModalContent: {
+    width: "85%",
+    maxHeight: "70%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  statsModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    paddingBottom: 12,
+  },
+  statsModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  statsModalList: {
+    marginTop: 8,
+  },
+  statsModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F9FAFB",
+  },
+  statsModalIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#EEF2FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  statsModalItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#4B5563",
+    flex: 1,
+  },
+  emptyText: {
+    textAlign: "center",
+    color: "#9CA3AF",
+    marginTop: 20,
+    fontStyle: "italic",
   },
 });

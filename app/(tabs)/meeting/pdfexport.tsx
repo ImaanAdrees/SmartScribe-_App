@@ -8,49 +8,95 @@ import {
   Switch,
   Modal,
   Animated,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { logExportPDF } from "@/utils/activityLogger";
+import API_URL from "@/utils/api";
 
 const ExportScreen = () => {
   const router = useRouter();
+  const { summaryId, title } = useLocalSearchParams<{ summaryId: string, title: string }>();
   const [selectedFormat, setSelectedFormat] = useState("pdf");
-  const [includeTimestamps, setIncludeTimestamps] = useState(true);
-  const [includeSummary, setIncludeSummary] = useState(true);
-  const [includeActionItems, setIncludeActionItems] = useState(false);
-  const [includeMetadata, setIncludeMetadata] = useState(true);
-  const [selectedMeetings, setSelectedMeetings] = useState(["meeting1"]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  const meetings = [
-    { id: "meeting1", title: "Weekly Sync", date: "Oct 22, 2025", duration: "45 min" },
-    { id: "meeting2", title: "Sprint Planning", date: "Oct 20, 2025", duration: "60 min" },
-    { id: "meeting3", title: "Client Review", date: "Oct 18, 2025", duration: "30 min" },
-    { id: "meeting4", title: "UI Update", date: "Oct 15, 2025", duration: "45 min" },
-  ];
-
-  const toggleMeetingSelection = (id: string) => {
-    if (selectedMeetings.includes(id)) {
-      setSelectedMeetings(selectedMeetings.filter((m) => m !== id));
-    } else {
-      setSelectedMeetings([...selectedMeetings, id]);
+  const handleExport = async () => {
+    if (!summaryId) {
+      Alert.alert("Error", "No summary selected for export.");
+      return;
     }
-  };
 
-  const handleExport = () => {
     setIsExporting(true);
 
-    // Simulate export process
-    setTimeout(() => {
+    try {
+      const token = await AsyncStorage.getItem("userToken");
+      if (!token) throw new Error("Authentication token not found.");
+
+      const fileUri = `${FileSystem.documentDirectory}${title ? title.replace(/[^a-z0-9]/gi, '_') : 'summary'}.${selectedFormat}`;
+      const url = `${API_URL}/api/summary/export/${summaryId}?format=${selectedFormat}`;
+
+      const downloadRes = await FileSystem.downloadAsync(url, fileUri, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (downloadRes.status !== 200) {
+        throw new Error("Failed to download file from server.");
+      }
+
+      // Log activity
+      await logExportPDF({ format: selectedFormat, summaryId });
+
       setIsExporting(false);
       setShowSuccess(true);
 
-      setTimeout(() => {
+      setTimeout(async () => {
         setShowSuccess(false);
-      }, 2500);
-    }, 2000);
+        try {
+          if (Platform.OS === "android") {
+            const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+            if (permissions.granted) {
+              const base64 = await FileSystem.readAsStringAsync(downloadRes.uri, { encoding: FileSystem.EncodingType.Base64 });
+              const newUri = await FileSystem.StorageAccessFramework.createFileAsync(
+                permissions.directoryUri, 
+                title ? title.replace(/[^a-z0-9]/gi, '_') : 'summary', 
+                selectedFormat === 'pdf' ? 'application/pdf' : 'text/plain'
+              );
+              await FileSystem.writeAsStringAsync(newUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+              Alert.alert("Success", "File downloaded successfully to your device!");
+            } else {
+              if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(downloadRes.uri);
+              }
+            }
+          } else {
+            // iOS strictly requires the share sheet to "Save to Files"
+            if (await Sharing.isAvailableAsync()) {
+              await Sharing.shareAsync(downloadRes.uri, {
+                UTI: selectedFormat === 'pdf' ? 'com.adobe.pdf' : 'public.plain-text'
+              });
+            }
+          }
+        } catch (e) {
+          console.error(e);
+          Alert.alert("Error", "Could not save the file directly.");
+          if (await Sharing.isAvailableAsync()) {
+            await Sharing.shareAsync(downloadRes.uri);
+          }
+        }
+      }, 1500);
+
+    } catch (error) {
+      setIsExporting(false);
+      Alert.alert("Export Error", error.message || "Something went wrong.");
+    }
   };
 
   return (
@@ -131,6 +177,10 @@ const ExportScreen = () => {
           <View style={styles.summaryCard}>
             <Text style={styles.summaryTitle}>📊 Export Summary</Text>
             <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Summary:</Text>
+              <Text style={styles.summaryValue} numberOfLines={1}>{title || 'Untitled'}</Text>
+            </View>
+            <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Format:</Text>
               <Text style={styles.summaryValue}>{selectedFormat.toUpperCase()}</Text>
             </View>
@@ -143,14 +193,14 @@ const ExportScreen = () => {
         <TouchableOpacity
           style={[
             styles.exportButton,
-            selectedMeetings.length === 0 && styles.exportButtonDisabled,
+            !summaryId && styles.exportButtonDisabled,
           ]}
           onPress={handleExport}
-          disabled={selectedMeetings.length === 0 || isExporting}
+          disabled={!summaryId || isExporting}
         >
           <LinearGradient
             colors={
-              selectedMeetings.length === 0
+              !summaryId
                 ? ["#D1D5DB", "#D1D5DB"]
                 : ["#10B981", "#059669"]
             }
@@ -406,6 +456,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1F2937",
+    flexShrink: 1,
+    textAlign: "right",
+    marginLeft: 10,
   },
   footer: {
     paddingHorizontal: 20,
