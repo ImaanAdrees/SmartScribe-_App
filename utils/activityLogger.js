@@ -97,6 +97,10 @@ export const logExportPDF = async (metadata = {}) => {
   await logUserActivity("Export PDF", "User exported to PDF", metadata);
 };
 
+export const logExportTXT = async (metadata = {}) => {
+  await logUserActivity("Export TXT", "User exported to TXT", metadata);
+};
+
 export const logNotificationViewed = async (metadata = {}) => {
   await logUserActivity("Notification Viewed", "User viewed a notification", metadata);
 };

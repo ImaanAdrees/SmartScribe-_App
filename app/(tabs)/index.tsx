@@ -5,7 +5,6 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Easing,
-  FlatList,
   Modal,
   SafeAreaView,
   StyleSheet,
@@ -26,7 +25,7 @@ import { activityAPI } from "@/utils/activityAPI";
 import { statsAPI } from "@/utils/statsAPI";
 import Reanimated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 
-const { width, height } = Dimensions.get("window");
+// const { width, height } = Dimensions.get("window");
 const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 
 const HomeScreen: React.FC = () => {
@@ -348,7 +347,7 @@ const HomeScreen: React.FC = () => {
       activityAPI.getRecent(),
     ]);
     if (statsRes.success) {
-      setStats(statsRes.stats);
+      setStats(statsRes.stats || { recordings: 0, transcriptions: 0, summaries: 0 });
       if (statsRes.items) {
         setStatsItems(statsRes.items);
       }
@@ -439,16 +438,16 @@ const HomeScreen: React.FC = () => {
     { title: "Recordings", icon: "mic", color: "#A855F7", route: "/(tabs)/recordings", count: "View & edit", iconType: "Ionicons" },
   ];
 
-  const getStatusConfig = (status: string) => {
-    switch(status) {
-      case "Summarized":
-        return { bg: "#DCFCE7", color: "#16A34A", icon: "checkmark-circle" };
-      case "Transcribed":
-        return { bg: "#E0E7FF", color: "#4F46E5", icon: "text" };
-      default:
-        return { bg: "#F3E8FF", color: "#7E22CE", icon: "mic" };
-    }
-  };
+  // const getStatusConfig = (status: string) => {
+  //   switch(status) {
+  //     case "Summarized":
+  //       return { bg: "#DCFCE7", color: "#16A34A", icon: "checkmark-circle" };
+  //     case "Transcribed":
+  //       return { bg: "#E0E7FF", color: "#4F46E5", icon: "text" };
+  //     default:
+  //       return { bg: "#F3E8FF", color: "#7E22CE", icon: "mic" };
+  //   }
+  // };
 
   // (Removed: stats useEffect, now handled by fetchStatsAndActivities)
 
@@ -608,7 +607,7 @@ const HomeScreen: React.FC = () => {
 
       {/* 📊 Stats Detail Modal */}
       <Modal transparent visible={selectedStat !== null} animationType="none">
-        <View style={styles.modalOverlay}>
+        <View style={styles.centeredOverlay}>
           <Animated.View style={[styles.statsModalContent, { opacity: statPopupAnim }]}>
             <View style={styles.statsModalHeader}>
               <Text style={styles.statsModalTitle}>
@@ -624,9 +623,14 @@ const HomeScreen: React.FC = () => {
               ) : (
                 selectedStat && statsItems[selectedStat].map((item: any, idx: number) => {
                   let itemName = "Untitled";
-                  if (selectedStat === "recordings") itemName = item.originalName || item.name || `Recording ${idx + 1}`;
-                  if (selectedStat === "transcriptions") itemName = item.recordingId?.originalName || item.recordingId?.name || item.title || `Transcription ${idx + 1}`;
-                  if (selectedStat === "summaries") itemName = item.recordingId?.originalName || item.recordingId?.name || item.title || `Summary ${idx + 1}`;
+                  if (selectedStat === "recordings") {
+                    itemName = item.name || item.originalName || item.recordingName || item.title || `Recording ${idx + 1}`;
+                  } else if (selectedStat === "transcriptions") {
+                    // Support multiple possible shapes returned from backend
+                    itemName = item.recording?.name || item.recording?.originalName || item.recordingId?.name || item.recordingId?.originalName || item.title || `Transcription ${idx + 1}`;
+                  } else if (selectedStat === "summaries") {
+                    itemName = item.recordingId?.name || item.recordingId?.originalName || item.recordingId?.recordingName || item.title || `Summary ${idx + 1}`;
+                  }
 
                   return (
                     <View key={item._id} style={styles.statsModalItem}>
@@ -649,7 +653,7 @@ const HomeScreen: React.FC = () => {
 
       {/* 🎞 Recording Modal */}
       <Modal transparent visible={showRecordModal} animationType="none">
-        <View style={styles.modalOverlay}>
+        <View style={styles.bottomModalOverlay}>
           <Animated.View style={[styles.modalContent, { transform: [{ translateY: slideAnim }] }]}>
             <LinearGradient
               colors={["#6366F1", "#4F46E5"]}
@@ -889,10 +893,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  modalOverlay: {
+  bottomModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  centeredOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContent: {
     borderTopLeftRadius: 30,
@@ -971,16 +982,11 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   waveformBar: {
-    width: 3,
     borderRadius: 2,
     backgroundColor: "rgba(255,255,255,0.6)",
+    width: 3,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  // ...existing code...
   statsModalContent: {
     width: "85%",
     maxHeight: "70%",
