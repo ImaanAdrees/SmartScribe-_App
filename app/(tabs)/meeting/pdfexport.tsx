@@ -51,8 +51,14 @@ const ExportScreen = () => {
         throw new Error("Failed to download file from server.");
       }
 
-      // Log activity
-      await logExportPDF({ format: selectedFormat, summaryId });
+      // Log activity depending on selected format
+      if (selectedFormat === 'pdf') {
+        await logExportPDF({ format: selectedFormat, summaryId });
+      } else if (selectedFormat === 'txt') {
+        // logExportTXT was added to track TXT exports
+        const { logExportTXT } = await import('@/utils/activityLogger');
+        await logExportTXT({ format: selectedFormat, summaryId });
+      }
 
       setIsExporting(false);
       setShowSuccess(true);
