@@ -2,20 +2,24 @@ import React, { useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   View,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   FlatList,
   SafeAreaView,
+  ScrollView,
 } from "react-native";
 import { Link, router } from "expo-router";
 import { authAPI, sendExpoPushToken } from "../../utils/api";
 import { registerForPushNotificationsAsync } from "../../utils/pushNotifications";
 import { showToast } from "../../utils/ToastHelper";
 import { Ionicons } from "@expo/vector-icons";
+
 
 const PENDING_SIGNUP_KEY = "pendingSignupData";
 
@@ -199,7 +203,6 @@ function DropdownPicker({
 }
 
 // ─── Signup Screen ─────────────────────────────────────────────────────────────
-
 export default function SignupScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -335,143 +338,139 @@ export default function SignupScreen() {
   };
 
   return (
-    <View style={styles.container}>
-
-      <Text style={styles.title}>Create Account ✨</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Full Name"
-        value={name}
-        onChangeText={setName}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Phone Number"
-        value={phone}
-        onChangeText={setPhone}
-        keyboardType="phone-pad"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="University / Organization"
-        value={organization}
-        onChangeText={setOrganization}
-      />
-
-      {/* COUNTRY DROPDOWN */}
-      <DropdownPicker
-        placeholder="Country"
-        value={country}
-        options={COUNTRIES}
-        onSelect={handleCountrySelect}
-      />
-
-      {/* CITY DROPDOWN */}
-      <DropdownPicker
-        placeholder="City"
-        value={city}
-        options={cityOptions}
-        onSelect={setCity}
-        disabled={!country}
-      />
-
-      {/* PASSWORD */}
-      <View style={styles.passwordContainer}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Password"
-          secureTextEntry={!showPassword}
-          value={password}
-          onChangeText={setPassword}
-        />
-
-        <TouchableOpacity
-          onPress={() => setShowPassword(!showPassword)}
-        >
-          <Ionicons
-            name={showPassword ? "eye-off" : "eye"}
-            size={22}
-            color="#555"
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* CONFIRM PASSWORD */}
-      <View style={styles.passwordContainer}>
-        <TextInput
-          style={styles.passwordInput}
-          placeholder="Confirm Password"
-          secureTextEntry={!showConfirmPassword}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-        />
-
-        <TouchableOpacity
-          onPress={() =>
-            setShowConfirmPassword(!showConfirmPassword)
-          }
-        >
-          <Ionicons
-            name={showConfirmPassword ? "eye-off" : "eye"}
-            size={22}
-            color="#555"
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* ROLE */}
-      <Text style={styles.roleLabel}>Select Role</Text>
-
-      <View style={styles.roleContainer}>
-        {roles.map((item) => (
-          <TouchableOpacity
-            key={item}
-            style={[
-              styles.roleButton,
-              role === item && styles.roleSelected,
-            ]}
-            onPress={() => setRole(item)}
-          >
-            <Text
-              style={[
-                styles.roleText,
-                role === item && styles.roleTextSelected,
-              ]}
-            >
-              {item}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* BUTTON */}
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleSignup}
-        disabled={loading}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        {loading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={styles.buttonText}>Sign Up</Text>
-        )}
-      </TouchableOpacity>
-
-      <Link href="/auth/login" style={styles.link}>
-        Already have account? Log in
-      </Link>
-
-    </View>
+        <View style={styles.container}>
+          <Text style={styles.title}>Create Account ✨</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Full Name"
+            value={name}
+            onChangeText={setName}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={setEmail}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Phone Number"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="University / Organization"
+            value={organization}
+            onChangeText={setOrganization}
+          />
+          {/* COUNTRY DROPDOWN */}
+          <DropdownPicker
+            placeholder="Country"
+            value={country}
+            options={COUNTRIES}
+            onSelect={handleCountrySelect}
+          />
+          {/* CITY DROPDOWN */}
+          <DropdownPicker
+            placeholder="City"
+            value={city}
+            options={cityOptions}
+            onSelect={setCity}
+            disabled={!country}
+          />
+          {/* PASSWORD */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Ionicons
+                name={showPassword ? "eye-off" : "eye"}
+                size={22}
+                color="#555"
+              />
+            </TouchableOpacity>
+          </View>
+          {/* CONFIRM PASSWORD */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Confirm Password"
+              secureTextEntry={!showConfirmPassword}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity
+              onPress={() =>
+                setShowConfirmPassword(!showConfirmPassword)
+              }
+            >
+              <Ionicons
+                name={showConfirmPassword ? "eye-off" : "eye"}
+                size={22}
+                color="#555"
+              />
+            </TouchableOpacity>
+          </View>
+          {/* ROLE */}
+          <Text style={styles.roleLabel}>Select Role</Text>
+          <View style={styles.roleContainer}>
+            {roles.map((item) => (
+              <TouchableOpacity
+                key={item}
+                style={[
+                  styles.roleButton,
+                  role === item && styles.roleSelected,
+                ]}
+                onPress={() => setRole(item)}
+              >
+                <Text
+                  style={[
+                    styles.roleText,
+                    role === item && styles.roleTextSelected,
+                  ]}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {/* BUTTON */}
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleSignup}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.buttonText}>Sign Up</Text>
+            )}
+          </TouchableOpacity>
+          <Link href="/auth/login" style={styles.link}>
+            Already have account? Log in
+          </Link>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -480,8 +479,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 24,
-    justifyContent: "center",
     backgroundColor: "white",
+  },
+
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
 
   title: {
